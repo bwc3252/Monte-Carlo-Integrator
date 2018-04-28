@@ -1,6 +1,6 @@
 import numpy as np
 import weighted_gmm
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from multiprocessing import cpu_count, Pool
 from time import time
 
@@ -34,8 +34,8 @@ class integrator:
         self.bounds = bounds
         self.gmm_dict = gmm_dict
         self.n_comp = n_comp
-        self.t = 1.01
-        self.n = (5000 * self.d) # this is a VERY arbitrary choice about the number of 
+        self.t = 1.05
+        self.n = (5000 * (self.d**2)) # this is a VERY arbitrary choice about the number of 
                                  # samples that are necessary
         
     def evaluate_function_over_sample_array(self, sample_array, func):
@@ -59,6 +59,7 @@ class integrator:
         p = Pool(max_procs) # create pool
         value_array_list = p.map(func, array_list)
         # put results back into one array to return
+        p.close()
         value_array = np.nan_to_num(np.concatenate(value_array_list))
         return value_array
 
@@ -97,11 +98,6 @@ class integrator:
                 sample_column = clf.sample(n_samples=n)
                 index = 0
                 for dim in dim_group:
-                    sub_array = sample_column[:,[index]]
-                    llim = llim_array[0][dim]
-                    rlim = rlim_array[0][dim]
-                    sample_column[sample_column < llim] = np.random.uniform(llim, rlim)
-                    sample_column[sample_column > rlim] = np.random.uniform(llim, rlim)
                     # replace zeros with samples
                     sample_array[:,[dim]] = sample_column[:,[index]]
                     index += 1
@@ -121,14 +117,30 @@ class integrator:
         value_array = self.evaluate_function_over_sample_array(sample_array, func)
         return sample_array, p_array, value_array
 
-    def calc_integral(self, value_array, p_array):
+    def calc_integral(self, sample_array, value_array, p_array):
         '''
         Performs the monte carlo integral for the given function values and responsibilities.
+        
+        Note: Ignores samples outside user-specified bounds
         '''
         n = self.n
+        d = self.d
+        bounds = self.bounds
+        
+        # take care of points outside domain
+        
+        for dim in range(d):
+            llim = bounds[dim][0]
+            rlim = bounds[dim][1]
+            sample_column = sample_array[:,[dim]]
+            value_array[sample_column < llim] = 0
+            value_array[sample_column > rlim] = 0
+        
+        # do integration
+        
         value_array /= p_array
         i = np.sum(value_array)
-        return (1 / n) * i
+        return (1.0 / n) * i
 
     def fit_gmm(self, sample_array, value_array, gmm_dict):
         '''
@@ -154,7 +166,7 @@ class integrator:
                 clf.fit(X=samples_to_fit, w=abs(value_array))
                 gmm_dict[dim_group] = clf
             except KeyboardInterrupt:
-                break
+                return False
             except:
                 # mixture model failed to fit, revert to uniform sampling
                 gmm_dict[dim_group] = None
@@ -192,9 +204,11 @@ class integrator:
                 warnings.simplefilter("ignore")
                 # fit the model
                 gmm_dict = self.fit_gmm(sample_array, value_array, gmm_dict)
+                if not gmm_dict:
+                    break
                 # sample from newly-fitted GMM
                 sample_array, p_array, value_array = self.sample_from_gmm(gmm_dict, func)
-            integral = self.calc_integral(value_array, p_array)
+            integral = self.calc_integral(sample_array, value_array, p_array)
             print()
             print(integral)
             print()
