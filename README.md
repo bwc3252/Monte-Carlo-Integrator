@@ -25,7 +25,3 @@ To test mcsampler, run
     python3 test_mcsampler_new.py
 
 The integrand, the number of dimensions, the limits of integration, and the grouping of dimensions can all be changed in the test files.
-<<<<<<< HEAD
-
-=======
->>>>>>> c8091509026ba3d3437c7dc5c03b973fc5bdd799
