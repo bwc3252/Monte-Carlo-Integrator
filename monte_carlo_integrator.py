@@ -1,32 +1,32 @@
 import numpy as np
-import weighted_gmm
-#import matplotlib.pyplot as plt
-from multiprocessing import cpu_count, Pool
+from multiprocess import cpu_count, Pool
 from time import time
-
 import warnings
+import dill
+
+import weighted_gmm # a modified implementation of the scikit-learn gmm
 
 class integrator:
     '''
-    
-    A class for evaluating multivariate integrals using an adaptive monte carlo method.  
+
+    A class for evaluating multivariate integrals using an adaptive monte carlo method.
     It is assumed that the integrand can be well-approximated by a mixture of Gaussians.
-    
+
     Parameters
-    
+
     d: Number of dimensions
-    
+
     bounds: A (d x 2) array where each row is [lower_bound, upper_bound] for its
     correspondind dimension
-    
+
     gmm_dict: dictionary where each key is a tuple of dimension indicies and each value
     is a either a mixture model object or None.  Must contain all dimensions with no repeats.
-    
+
     n_comp: number of gaussian components for each dimension
-    
+
     After creating an instance of this object and defining func to be a vectorized python
     function, calling monte_carlo_integrator(func) will return the integral.
-    
+
     '''
 
     def __init__(self, d, bounds, gmm_dict, n_comp):
@@ -34,19 +34,19 @@ class integrator:
         self.bounds = bounds
         self.gmm_dict = gmm_dict
         self.n_comp = n_comp
-        self.t = 1.05
-        self.n = (5000 * (self.d**2)) # this is a VERY arbitrary choice about the number of 
+        self.t = 0.02 # percent estimated error threshold
+        self.n = (5000 * self.d) # this is a VERY arbitrary choice about the number of
                                  # samples that are necessary
-        
+
     def evaluate_function_over_sample_array(self, sample_array, func):
         '''
         Uses a multiprocessing pool to split up function evaluation over an array of samples.
-        
+
         Note: func must be a function that takes a numpy array as its parameter and
               returns a vertical numpy array of function values (e.g. numpy vectorized, etc.)
         '''
         n = self.n
-        max_procs = cpu_count()
+        max_procs = cpu_count() // 2
         array_list = []
         length = int(n / max_procs) # length of each split array
         a = 0
@@ -71,8 +71,8 @@ class integrator:
         n = self.n
         d = self.d
         bounds = self.bounds
-        llim_array = np.rot90(bounds[:,[0]])
-        rlim_array = np.rot90(bounds[:,[1]])
+        llim_array = np.rot90(bounds[:,[0]], -1)
+        rlim_array = np.rot90(bounds[:,[1]], -1)
         sample_array = np.random.uniform(llim_array, rlim_array, (n, d))
         value_array = self.evaluate_function_over_sample_array(sample_array, func)
         return sample_array, value_array
@@ -87,8 +87,8 @@ class integrator:
         n = self.n
         d = self.d
         bounds = self.bounds
-        llim_array = np.rot90(bounds[:,[0]])
-        rlim_array = np.rot90(bounds[:,[1]])
+        llim_array = np.rot90(bounds[:,[0]], -1)
+        rlim_array = np.rot90(bounds[:,[1]], -1)
         sample_array = np.empty((n, d))
         p_array = np.ones((n, 1))
         for dim_group in gmm_dict:
@@ -102,7 +102,7 @@ class integrator:
                     sample_array[:,[dim]] = sample_column[:,[index]]
                     index += 1
                 # get responsibilities for samples and take care of orientation, multiply
-                # by existing p_array so that the end product is the total responsibility 
+                # by existing p_array so that the end product is the total responsibility
                 # for each d-dimensional sample
                 p_array *= np.rot90([np.exp(clf.score(sample_column))], -1)
             else:
@@ -112,7 +112,7 @@ class integrator:
                     rlim = rlim_array[0][dim]
                     sample_column = np.random.uniform(llim, rlim, (n, 1))
                     sample_array[:,[dim]] = sample_column
-                    p_array *= 1 / (rlim - llim) 
+                    p_array *= 1 / (rlim - llim)
         # get function values
         value_array = self.evaluate_function_over_sample_array(sample_array, func)
         return sample_array, p_array, value_array
@@ -120,24 +120,22 @@ class integrator:
     def calc_integral(self, sample_array, value_array, p_array):
         '''
         Performs the monte carlo integral for the given function values and responsibilities.
-        
+
         Note: Ignores samples outside user-specified bounds
         '''
-        n = self.n
         d = self.d
         bounds = self.bounds
-        
+        n = self.n
         # take care of points outside domain
-        
+
         for dim in range(d):
             llim = bounds[dim][0]
             rlim = bounds[dim][1]
             sample_column = sample_array[:,[dim]]
             value_array[sample_column < llim] = 0
             value_array[sample_column > rlim] = 0
-        
+
         # do integration
-        
         value_array /= p_array
         i = np.sum(value_array)
         return (1.0 / n) * i
@@ -177,11 +175,35 @@ class integrator:
         #print('time to train:', round(time() - t, 2), 'seconds')
         return gmm_dict
 
+    def calculate_error(self, sample_array, value_array):
+        '''
+        I'm not really sure if this is correct but it returns results that seem
+        reasonable.
+        '''
+        n = self.n
+        d = self.d
+        bounds = self.bounds
+
+        # take care of points outside domain
+
+        for dim in range(d):
+            llim = bounds[dim][0]
+            rlim = bounds[dim][1]
+            sample_column = sample_array[:,[dim]]
+            value_array[sample_column < llim] = 0
+            value_array[sample_column > rlim] = 0
+
+
+        x = np.average(np.square(value_array))
+        y = np.square(np.average(value_array))
+        err = np.sqrt((x - y) / n)
+        return err
+
     def integrate(self, func):
         '''
         Main function to sample the integrand, model each dimension's distribution, and
         iteratively integrate the function and re-train the model until convergence is reached.
-        
+
         func: integrand function (must be able to take numpy array as parameter)
         '''
         d = self.d
@@ -193,13 +215,16 @@ class integrator:
         target_count = 5
         previous = False
         total_iters = 0
+        integral_list = np.array([])
+        weight_list = np.array([])
+        error_list = np.array([])
         while count < target_count:
             total_iters += 1
-            
+
             # the version of the scikit-learn mixture model in use here calls a deprecated
             # function in scikit-learn, which causes it to print a bunch of annoying warnings.
             # we don't need this for now, so we ignore the warnings.
-            
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 # fit the model
@@ -212,17 +237,22 @@ class integrator:
             print()
             print(integral)
             print()
+            err = self.calculate_error(sample_array, value_array)
             if previous: # check if there is a previous integral for comparison
                 # (rough) method to check for convergence
-                if (integral / previous) < t and (previous / integral) < t:
-                    total_integral += integral
+                if (err / integral) < t:
+                    integral_list = np.append(integral_list, integral)
+                    error_list = np.append(error_list, err)
+                    weight_list = np.append(weight_list, np.sum(p_array))
                     count += 1
-                else: # something is weird, restart everything. change this
-                    total_integral = 0
+                else: # something is weird, restart everything
+                    integral_list = np.array([])
+                    error_list = np.array([])
+                    weight_list = ([])
                     count = 0
             previous = integral
-        #plt.scatter(sample_array[:, [0]], value_array)
-        #plt.show()
-        #plt.hist(sample_array[:, [0]], 100)
-        #plt.show()
-        return total_integral / target_count
+            print('error:', err)
+        weight_list /= np.sum(weight_list)
+        integral_list *= weight_list
+        error_list *= weight_list
+        return np.sum(integral_list), np.sum(error_list), sample_array
