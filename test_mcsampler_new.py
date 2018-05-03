@@ -22,7 +22,7 @@ def integrand(sample_array):
 
 sampler = mcsampler_new.MCSampler()
 sampler.add_parameter('x', left_limit=-12, right_limit=12)
-result_dict = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True) # do a 1-d integral
+result_dict = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True)[3] # do a 1-d integral
 value_array = result_dict['value_array'][-1]
 p_array = result_dict['p_array'][-1]
 sample_array = result_dict['sample_array'][-1]
