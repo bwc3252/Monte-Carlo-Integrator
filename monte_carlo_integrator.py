@@ -205,6 +205,8 @@ class integrator:
         iteratively integrate the function and re-train the model until convergence is reached.
 
         func: integrand function (must be able to take numpy array as parameter)
+
+        returns: integral, error, list of sample arrays
         '''
         d = self.d
         t = self.t
@@ -213,11 +215,13 @@ class integrator:
         count = 0
         total_integral = 0
         target_count = 5
-        previous = False
         total_iters = 0
         integral_list = np.array([])
         weight_list = np.array([])
         error_list = np.array([])
+        sample_array_list = []
+        p_array_list = []
+        value_array_list = []
         while count < target_count:
             total_iters += 1
 
@@ -234,25 +238,23 @@ class integrator:
                 # sample from newly-fitted GMM
                 sample_array, p_array, value_array = self.sample_from_gmm(gmm_dict, func)
             integral = self.calc_integral(sample_array, value_array, p_array)
-            print()
             print(integral)
             print()
             err = self.calculate_error(sample_array, value_array)
-            if previous: # check if there is a previous integral for comparison
-                # (rough) method to check for convergence
-                if (err / integral) < t:
-                    integral_list = np.append(integral_list, integral)
-                    error_list = np.append(error_list, err)
-                    weight_list = np.append(weight_list, np.sum(p_array))
-                    count += 1
-                else: # something is weird, restart everything
-                    integral_list = np.array([])
-                    error_list = np.array([])
-                    weight_list = ([])
-                    count = 0
-            previous = integral
+            # (rough) method to check for convergence
+            if (err / integral) < t:
+                integral_list = np.append(integral_list, integral)
+                error_list = np.append(error_list, err)
+                weight_list = np.append(weight_list, np.sum(p_array))
+                value_array_list.append(value_array)
+                sample_array_list.append(sample_array)
+                p_array_list.append(p_array)
+                count += 1
             print('error:', err)
+            print()
         weight_list /= np.sum(weight_list)
         integral_list *= weight_list
         error_list *= weight_list
-        return np.sum(integral_list), np.sum(error_list), sample_array
+        return {'integral':np.sum(integral_list), 'error':np.sum(error_list),
+                'sample_array':sample_array_list, 'value_array':value_array_list,
+                'p_array':p_array_list}

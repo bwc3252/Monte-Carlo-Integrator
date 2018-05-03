@@ -2,11 +2,11 @@ import numpy as np
 import monte_carlo_integrator as monte_carlo
 
 
-x_min, x_max = -10, 10 # left and right limits, default to same for each dimension
-dim = 8 # number of dimensions
+x_min, x_max = -15, 15 # left and right limits, default to same for each dimension
+dim = 2 # number of dimensions
 bounds = np.array([[x_min, x_max]] * dim) # create array of limits of integration
 gmm_dict = {} # initialize dict used to group dimensions
-n_comp = 1 # number of gaussian components for each dimension
+n_comp = 2 # number of gaussian components for each dimension
 for x in range(dim):
     gmm_dict[(x,)] = None # default to modeling each dimension separately
 
@@ -23,8 +23,8 @@ for x in range(dim):
 
 def integrand(sample_array):
     # An example integrand where each dimension is the same mixture of to gaussians
-    value_array1 = np.square(sample_array - 2) * -0.5
-    value_array2 = np.square(sample_array + 2) * -0.5
+    value_array1 = np.square(sample_array - 4) * -0.5
+    value_array2 = np.square(sample_array + 4) * -0.5
     value_array1 = np.exp(value_array1)
     value_array2 = np.exp(value_array2)
     value_array1 = np.multiply((1 / (np.sqrt(2 * np.pi))), value_array1)
@@ -38,5 +38,5 @@ def integrand(sample_array):
 
 
 integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-i, err, arr = integrator.integrate(func=integrand)
-print('final integral:', i, 'with error', err)
+result = integrator.integrate(func=integrand)
+print('final integral:', result['integral'], 'with error', result['error'])

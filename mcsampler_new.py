@@ -32,8 +32,8 @@ class MCSampler(object):
     @staticmethod
     def match_params_from_args(args, params):
         """
-        Given two unordered sets of parameters, one a set of all "basic" elements 
-        (strings) possible, and one a set of elements both "basic" strings and 
+        Given two unordered sets of parameters, one a set of all "basic" elements
+        (strings) possible, and one a set of elements both "basic" strings and
         "combined" (basic strings in tuples), determine whether the sets are equivalent
         if no basic element is repeated.
 
@@ -42,7 +42,7 @@ class MCSampler(object):
         ("a", "b", "c") ?= ("a", "b", "c") ==> True
         (("a", "b", "c")) ?= ("a", "b", "c") ==> True
         (("a", "b"), "d")) ?= ("a", "b", "c") ==> False  # basic element 'd' not in set B
-        (("a", "b"), "d")) ?= ("a", "b", "d", "c") ==> False  # not all elements in set B 
+        (("a", "b"), "d")) ?= ("a", "b", "d", "c") ==> False  # not all elements in set B
         represented in set A
         """
         not_common = set(args) ^ set(params)
@@ -56,7 +56,7 @@ class MCSampler(object):
 
         to_match = filter(lambda i: not isinstance(i, tuple), not_common)
         against = filter(lambda i: isinstance(i, tuple), not_common)
-        
+
         matched = []
         import itertools
         for i in range(2, max(map(len, against))+1):
@@ -72,7 +72,7 @@ class MCSampler(object):
         self.params_ordered = []  # keep them in order. Important to break likelihood function need for names
         # parameter -> pdf function object
         self.pdf = {}
-        # If the pdfs aren't normalized, this will hold the normalization 
+        # If the pdfs aren't normalized, this will hold the normalization
         # constant
         self._pdf_norm = defaultdict(lambda: 1)
         # Cache for the sampling points
@@ -108,21 +108,21 @@ class MCSampler(object):
         self.rlim = {}
         self.adaptive = []
 
-    def add_parameter(self, params, pdf=None,  cdf_inv=None, left_limit=None, right_limit=None, 
+    def add_parameter(self, params, pdf=None,  cdf_inv=None, left_limit=None, right_limit=None,
                         prior_pdf=None, adaptive_sampling=False):
         """
-        Add one (or more) parameters to sample dimensions. params is either a string 
-        describing the parameter, or a tuple of strings. The tuple will indicate to 
-        the sampler that these parameters must be sampled together. left_limit and 
-        right_limit are on the infinite interval by default, but can and probably should 
-        be specified. If several params are given, left_limit, and right_limit must be a 
-        set of tuples with corresponding length. Sampling PDF is required, and if not 
-        provided, the cdf inverse function will be determined numerically from the 
+        Add one (or more) parameters to sample dimensions. params is either a string
+        describing the parameter, or a tuple of strings. The tuple will indicate to
+        the sampler that these parameters must be sampled together. left_limit and
+        right_limit are on the infinite interval by default, but can and probably should
+        be specified. If several params are given, left_limit, and right_limit must be a
+        set of tuples with corresponding length. Sampling PDF is required, and if not
+        provided, the cdf inverse function will be determined numerically from the
         sampling PDF.
         """
         self.params.add(params) # does NOT preserve order in which parameters are provided
         self.params_ordered.append(params)
-        if rosDebugMessages: 
+        if rosDebugMessages:
             print(" Adding parameter ", params, " with limits ", [left_limit, right_limit])
         if isinstance(params, tuple):
             assert all(map(lambda lim: lim[0] < lim[1], zip(left_limit, right_limit)))
@@ -144,14 +144,14 @@ class MCSampler(object):
                 self.rlim[params] = float("+inf")
             else:
                 self.rlim[params] = right_limit
-        
+
         #######################################################################
         #                                                                     #
         #    None of the stuff from this point on is necessary anymore ???    #
         #    I'm just getting rid of it all for now                           #
         #                                                                     #
         #######################################################################
-        
+
         '''
         self.pdf[params] = pdf
         # FIXME: This only works automagically for the 1d case currently
@@ -168,30 +168,44 @@ class MCSampler(object):
             print "   Adapting ", params
             self.adaptive.append(params)
         '''
-        
 
-    def integrate(self, func, args,n_comp=None):
+
+    def integrate(self, func, args, n_comp=None, write_to_file=False):
         '''
-        
+
         This is where I need to add stuff
-        
+
         '''
         if not n_comp:
+            print('No n_comp given, assuming 1 component per dimension')
             n_comp = 1
         dim = len(args)
         bounds = []
         for param in args:
             bounds.append([self.llim[param], self.rlim[param]])
         bounds = numpy.array(bounds)
-        
+
         # for now, we hardcode the assumption that there are no correlated dimensions
-        
+
         gmm_dict = {}
         for x in range(dim):
             gmm_dict[(x,)] = None
-        
+
+        # do the integral
+
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-        return integrator.integrate(func)
+        results = integrator.integrate(func)
+
+        # write data to file
+
+        if write_to_file:
+            sample_array = results['sample_array'][-1]
+            value_array = results['value_array'][-1]
+            p_array = results['p_array'][-1]
+            numpy.savetxt('mcsampler_data.txt', (sample_array, value_array, p_array),
+                        header=' '.join(('sample_array', 'value_array', 'p_array')))
+
+        return results
 
 
 ##############################################################
@@ -275,7 +289,7 @@ class HealPixSampler(object):
         phi (east to west) (0, 2*pi)
         declination: north pole = pi/2, south pole = -pi/2
         right ascension: (0, 2*pi)
-        
+
         dec = pi/2 - theta
         ra = phi
         """
@@ -289,7 +303,7 @@ class HealPixSampler(object):
         phi (east to west) (0, 2*pi)
         declination: north pole = pi/2, south pole = -pi/2
         right ascension: (0, 2*pi)
-        
+
         theta = pi/2 - dec
         ra = phi
         """
@@ -427,7 +441,7 @@ def convergence_test_MostSignificantPoint(pcut, rvs, params):
 
 # normality test: is the MC integral normally distributed, with a small standard deviation?
 #    - value: tests for converged integral
-#    - arguments: 
+#    - arguments:
 #         - ncopies:               # of sub-integrals
 #         - pcutNormalTest     Threshold p-value for normality test
 #         - sigmaCutErrorThreshold   Threshold relative error in the integral
@@ -435,7 +449,7 @@ def convergence_test_MostSignificantPoint(pcut, rvs, params):
 #           - this helps us handle large orders-of-magnitude differences
 #           - compatible with a *relative* error threshold on integral
 #           - only works for *positive-definite* integrands
-#    - other python normality tests:  
+#    - other python normality tests:
 #          scipy.stats.shapiro
 #          scipy.stats.anderson
 #  WARNING:
@@ -448,10 +462,9 @@ def convergence_test_NormalSubIntegrals(ncopies, pcutNormalTest, sigmaCutRelativ
     len_part = numpy.int(len(weights)/ncopies)  # deprecated: np.floor->np.int
     for indx in numpy.arange(ncopies):
         igrandValues[indx] = numpy.log(numpy.mean(weights[indx*len_part:(indx+1)*len_part]))  # change to mean rather than sum, so sub-integrals have meaning
-    igrandValues= numpy.sort(igrandValues)#[2:]                            # Sort.  Useful in reports 
+    igrandValues= numpy.sort(igrandValues)#[2:]                            # Sort.  Useful in reports
     valTest = stats.normaltest(igrandValues)[1]                              # small value is implausible
     igrandSigma = (numpy.std(igrandValues))/numpy.sqrt(ncopies)   # variance in *overall* integral, estimated from variance of sub-integrals
     print(" Test values on distribution of log evidence:  (gaussianity p-value; standard deviation of ln evidence) ", valTest, igrandSigma)
     print(" Ln(evidence) sub-integral values, as used in tests  : ", igrandValues)
     return valTest> pcutNormalTest and igrandSigma < sigmaCutRelativeErrorThreshold   # Test on left returns a small value if implausible. Hence pcut ->0 becomes increasingly difficult (and requires statistical accidents). Test on right requires relative error in integral also to be small when pcut is small.   FIXME: Give these variables two different names
-    
