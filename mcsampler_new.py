@@ -195,6 +195,8 @@ class MCSampler(object):
 
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
         results = integrator.integrate(func)
+        integral = results['integral']
+        error = results['error']
 
         # write data to file
 
@@ -202,10 +204,11 @@ class MCSampler(object):
             sample_array = results['sample_array'][-1]
             value_array = results['value_array'][-1]
             p_array = results['p_array'][-1]
-            numpy.savetxt('mcsampler_data.txt', (sample_array, value_array, p_array),
-                        header=' '.join(('sample_array', 'value_array', 'p_array')))
+            dat_out = numpy.c_[sample_array, value_array, p_array]
+            numpy.savetxt('mcsampler_data.txt', dat_out,
+                        header=" ".join(['sample_array', 'value_array', 'p_array']))
 
-        return results
+        return integral, error, 0, results
 
 
 ##############################################################
