@@ -196,8 +196,8 @@ class integrator:
 
         x = np.average(np.square(value_array))
         y = np.square(np.average(value_array))
-        err = np.sqrt((x - y) / n)
-        return err
+        err_squared = (x - y) / n
+        return err_squared
 
     def integrate(self, func):
         '''
@@ -240,11 +240,12 @@ class integrator:
             integral = self.calc_integral(sample_array, value_array, p_array)
             print(integral)
             print()
-            err = self.calculate_error(sample_array, value_array)
+            err_squared = self.calculate_error(sample_array, value_array)
+            err = np.sqrt(err_squared)
             # (rough) method to check for convergence
             if (err / integral) < t:
                 integral_list = np.append(integral_list, integral)
-                error_list = np.append(error_list, err)
+                error_list = np.append(error_list, err_squared)
                 weight_list = np.append(weight_list, np.sum(p_array))
                 value_array_list.append(value_array)
                 sample_array_list.append(sample_array)
@@ -255,6 +256,6 @@ class integrator:
         weight_list /= np.sum(weight_list)
         integral_list *= weight_list
         error_list *= weight_list
-        return {'integral':np.sum(integral_list), 'error':np.sum(error_list),
+        return {'integral':np.sum(integral_list), 'error':np.sqrt(np.sum(error_list)),
                 'sample_array':sample_array_list, 'value_array':value_array_list,
                 'p_array':p_array_list}
