@@ -16,12 +16,14 @@ To test mcsampler, you need
 
     test_mcsampler_new.py
 
-To test the integrator, run
+To test mcsampler and generate a CDF of the sampled points you need
 
-    python3 test.py
+    test_distribution.py
 
-To test mcsampler, run
+Each test file should run on its own. Run:
+    
+    python3 <test_file.py>
 
-    python3 test_mcsampler_new.py
+with the appropriate test file.
 
 The integrand, the number of dimensions, the limits of integration, and the grouping of dimensions can all be changed in the test files.
