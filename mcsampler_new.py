@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import math
 import bisect
@@ -182,6 +183,7 @@ class MCSampler(object):
         dim = len(args)
         bounds = []
         for param in args:
+            #print('Integrating param', param, 'with llim', self.llim[param], 'and rlim', self.rlim[param])
             bounds.append([self.llim[param], self.rlim[param]])
         bounds = numpy.array(bounds)
 
@@ -197,18 +199,27 @@ class MCSampler(object):
         results = integrator.integrate(func)
         integral = results['integral']
         error = results['error']
+        eff_samp = results['eff_samp']
+        sample_array = results['sample_array'][-1]
+        value_array = results['value_array'][-1]
+        p_array = results['p_array'][-1]
+
+        # populate dictionary
+
+        index = 0
+        for param in args:
+            samples = numpy.rot90(sample_array[:,[index]])
+            self._rvs[param] = samples
+            index += 1
 
         # write data to file
 
         if write_to_file:
-            sample_array = results['sample_array'][-1]
-            value_array = results['value_array'][-1]
-            p_array = results['p_array'][-1]
             dat_out = numpy.c_[sample_array, value_array, p_array]
             numpy.savetxt('mcsampler_data.txt', dat_out,
                         header=" ".join(['sample_array', 'value_array', 'p_array']))
 
-        return integral, error, 0, results
+        return integral, error, eff_samp, results
 
 
 ##############################################################

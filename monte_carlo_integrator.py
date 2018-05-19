@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from multiprocess import cpu_count, Pool
 from time import time
@@ -71,8 +72,8 @@ class integrator:
         n = self.n
         d = self.d
         bounds = self.bounds
-        llim_array = np.rot90(bounds[:,[0]], -1)
-        rlim_array = np.rot90(bounds[:,[1]], -1)
+        llim_array = np.rot90(bounds[:,[0]])
+        rlim_array = np.rot90(bounds[:,[1]])
         sample_array = np.random.uniform(llim_array, rlim_array, (n, d))
         value_array = self.evaluate_function_over_sample_array(sample_array, func)
         return sample_array, value_array
@@ -87,8 +88,8 @@ class integrator:
         n = self.n
         d = self.d
         bounds = self.bounds
-        llim_array = np.rot90(bounds[:,[0]], -1)
-        rlim_array = np.rot90(bounds[:,[1]], -1)
+        llim_array = np.rot90(bounds[:,[0]])
+        rlim_array = np.rot90(bounds[:,[1]])
         sample_array = np.empty((n, d))
         p_array = np.ones((n, 1))
         for dim_group in gmm_dict:
@@ -99,6 +100,10 @@ class integrator:
                 index = 0
                 for dim in dim_group:
                     # replace zeros with samples
+                    #llim = llim_array[0][dim]
+                    #rlim = rlim_array[0][dim]
+                    #sample_column[sample_column[:,[index]] < llim] = np.random.uniform(llim, rlim)
+                    #sample_column[sample_column[:,[index]] > rlim] = np.random.uniform(llim, rlim)
                     sample_array[:,[dim]] = sample_column[:,[index]]
                     index += 1
                 # get responsibilities for samples and take care of orientation, multiply
@@ -112,7 +117,7 @@ class integrator:
                     rlim = rlim_array[0][dim]
                     sample_column = np.random.uniform(llim, rlim, (n, 1))
                     sample_array[:,[dim]] = sample_column
-                    p_array *= 1 / (rlim - llim)
+                    p_array *= 1.0 / (rlim - llim)
         # get function values
         value_array = self.evaluate_function_over_sample_array(sample_array, func)
         return sample_array, p_array, value_array
@@ -131,7 +136,9 @@ class integrator:
         for dim in range(d):
             llim = bounds[dim][0]
             rlim = bounds[dim][1]
+            #print('left lim:', llim, 'right lim:', rlim)
             sample_column = sample_array[:,[dim]]
+            #print(sample_column)
             value_array[sample_column < llim] = 0
             value_array[sample_column > rlim] = 0
 
@@ -161,7 +168,7 @@ class integrator:
                 index += 1
                 #clf.warm_start = True put this somewhere
             try:
-                clf.fit(X=samples_to_fit, w=abs(value_array))
+                clf.fit(X=samples_to_fit, w=np.log(abs(value_array)))
                 gmm_dict[dim_group] = clf
             except KeyboardInterrupt:
                 return False
@@ -193,7 +200,6 @@ class integrator:
             value_array[sample_column < llim] = 0
             value_array[sample_column > rlim] = 0
 
-
         x = np.average(np.square(value_array))
         y = np.square(np.average(value_array))
         err_squared = (x - y) / n
@@ -219,6 +225,7 @@ class integrator:
         integral_list = np.array([])
         weight_list = np.array([])
         error_list = np.array([])
+        eff_samp_list = np.array([])
         sample_array_list = []
         p_array_list = []
         value_array_list = []
@@ -237,6 +244,7 @@ class integrator:
                     break
                 # sample from newly-fitted GMM
                 sample_array, p_array, value_array = self.sample_from_gmm(gmm_dict, func)
+            #print(sample_array)
             integral = self.calc_integral(sample_array, value_array, p_array)
             print(integral)
             print()
@@ -244,9 +252,11 @@ class integrator:
             err = np.sqrt(err_squared)
             # (rough) method to check for convergence
             if (err / integral) < t:
+                eff_samp = np.sum(value_array) / np.max(value_array)
                 integral_list = np.append(integral_list, integral)
                 error_list = np.append(error_list, err_squared)
                 weight_list = np.append(weight_list, np.sum(p_array))
+                eff_samp_list = np.append(eff_samp_list, eff_samp)
                 value_array_list.append(value_array)
                 sample_array_list.append(sample_array)
                 p_array_list.append(p_array)
@@ -256,6 +266,7 @@ class integrator:
         weight_list /= np.sum(weight_list)
         integral_list *= weight_list
         error_list *= weight_list
+        eff_samp_list *= weight_list
         return {'integral':np.sum(integral_list), 'error':np.sqrt(np.sum(error_list)),
                 'sample_array':sample_array_list, 'value_array':value_array_list,
-                'p_array':p_array_list}
+                'p_array':p_array_list, 'eff_samp':np.sum(eff_samp_list)}
