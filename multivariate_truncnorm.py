@@ -46,31 +46,6 @@ def get_multipliers(cov):
     return q
 
 
-def get_one_sample(bounds, new_bounds, mean, q):
-    d = len(bounds)
-    count = 0
-    llim = new_bounds[:,[0]]
-    rlim = new_bounds[:,[1]]
-    while True:
-        count += 1
-        sample = np.rot90(truncnorm.rvs(llim, rlim, loc=0, scale=1))
-        sample = np.dot(q, sample[0]) + mean # unrotated here
-        if sample_in_region(sample, bounds):
-            return sample, count
-
-
-def sample_in_region(sample, bounds):
-    d = len(bounds)
-    sample = np.array(sample)[0]
-    for dim in range(d):
-        temp = np.array(bounds[dim])
-        llim = temp[0][0]
-        rlim = temp[0][1]
-        if sample[dim] < llim or sample[dim] > rlim:
-            return False
-    return True
-
-
 def sample(mean, cov, bounds, n):
     mean = np.matrix(mean)
     d = len(bounds)
