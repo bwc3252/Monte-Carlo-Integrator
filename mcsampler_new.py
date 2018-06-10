@@ -171,7 +171,7 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, write_to_file=False):
+    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None):
         '''
 
         This is where I need to add stuff
@@ -189,9 +189,10 @@ class MCSampler(object):
 
         # for now, we hardcode the assumption that there are no correlated dimensions
 
-        gmm_dict = {}
-        for x in range(dim):
-            gmm_dict[(x,)] = None
+        if not gmm_dict:
+            gmm_dict = {}
+            for x in range(dim):
+                gmm_dict[(x,)] = None
 
         # do the integral
 

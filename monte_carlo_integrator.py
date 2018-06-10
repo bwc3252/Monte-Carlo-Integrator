@@ -96,6 +96,7 @@ class integrator:
             clf = gmm_dict[dim_group]
             if clf:
                 # get samples for this set of dimensions
+                print('Standard devation of samples: ', clf)
                 sample_column = clf.sample(n_samples=n)
                 index = 0
                 for dim in dim_group:
@@ -147,7 +148,7 @@ class integrator:
         i = np.sum(value_array)
         return (1.0 / n) * i
 
-    def fit_gmm(self, sample_array, value_array, gmm_dict):
+    def fit_gmm(self, sample_array, value_array, gmm_dict, p_array):
         '''
         Attempts to fit a Gaussian Mixture Model to the data.
         '''
@@ -155,6 +156,7 @@ class integrator:
         d = self.d
         n_comp = self.n_comp
         t = time()
+        weights = abs(value_array)
         for dim_group in gmm_dict:
             clf = gmm_dict[dim_group]
             if not clf:
@@ -168,12 +170,14 @@ class integrator:
                 index += 1
                 #clf.warm_start = True put this somewhere
             try:
-                clf.fit(X=samples_to_fit, w=np.log(abs(value_array)))
+                clf.fit(X=samples_to_fit, w=weights)
                 gmm_dict[dim_group] = clf
+                clf.warm_start = True
             except KeyboardInterrupt:
                 return False
             except:
                 # mixture model failed to fit, revert to uniform sampling
+                print('Failed to fit GMM')
                 gmm_dict[dim_group] = None
             if clf:
                 if not clf.converged_:
@@ -214,6 +218,7 @@ class integrator:
 
         returns: integral, error, list of sample arrays
         '''
+        n = self.n
         d = self.d
         t = self.t
         gmm_dict = self.gmm_dict
@@ -229,6 +234,7 @@ class integrator:
         sample_array_list = []
         p_array_list = []
         value_array_list = []
+        p_array = np.ones((n, 1))
         while count < target_count:
             total_iters += 1
 
@@ -239,7 +245,7 @@ class integrator:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 # fit the model
-                gmm_dict = self.fit_gmm(sample_array, value_array, gmm_dict)
+                gmm_dict = self.fit_gmm(sample_array, value_array, gmm_dict, p_array)
                 if not gmm_dict:
                     break
                 # sample from newly-fitted GMM
@@ -251,7 +257,7 @@ class integrator:
             err_squared = self.calculate_error(sample_array, value_array)
             err = np.sqrt(err_squared)
             # (rough) method to check for convergence
-            if (err / integral) < t:
+            if True: #(err / integral) < t:
                 eff_samp = np.sum(value_array) / np.max(value_array)
                 integral_list = np.append(integral_list, integral)
                 error_list = np.append(error_list, err_squared)

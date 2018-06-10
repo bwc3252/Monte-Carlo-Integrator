@@ -1,7 +1,7 @@
 import mcsampler_new
 import numpy as np
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 
 def integrand(sample_array):

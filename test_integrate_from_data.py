@@ -9,7 +9,7 @@ gp = joblib.load('gp_fit.pkl')
 
 
 def fit_func(mass_coord1, mass_coord2):
-    return gp.predict([[mass_coord1, mass_coord2]])[0]
+    return gp.predict([[mass_coord1, mass_coord2]])#[0]
 
 
 def integrand(sample_array):
@@ -43,7 +43,7 @@ def main():
     sampler = mcsampler_new.MCSampler()
     sampler.add_parameter('mass_coord1', left_limit=1.217, right_limit=1.219)
     sampler.add_parameter('mass_coord2', left_limit=0.24, right_limit=0.249999)
-    result = sampler.integrate(integrand, args=('mass_coord1', 'mass_coord2'), n_comp=1, write_to_file=False)
+    result = sampler.integrate(integrand, args=('mass_coord1', 'mass_coord2'), n_comp=1, write_to_file=True)
     result_dict = result[-1]
     print('integral:', result_dict['integral'], 'error:', result_dict['error'], 'eff_samp:', result_dict['eff_samp'])
 
