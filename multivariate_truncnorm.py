@@ -1,8 +1,8 @@
 from __future__ import print_function
 import itertools
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.stats import truncnorm
+from time import time
 
 '''
 Code adapted from http://www.aishack.in/tutorials/generating-multivariate-gaussian-random/
@@ -54,9 +54,11 @@ def sample(mean, cov, bounds, n):
     llim_new = new_bounds[:,[0]]
     rlim_new = new_bounds[:,[1]]
     ret = np.empty((0, d))
+    iter = 0
     while len(ret) < n:
         samples = np.rot90(truncnorm.rvs(llim_new, rlim_new, loc=0, scale=1, size=(d, n)))
-        samples = np.rot90(np.inner(q, samples)) + mean
+        samples = np.rot90(np.inner(q, samples))
+        samples += mean
         llim = np.rot90(bounds[:,[0]])
         rlim = np.rot90(bounds[:,[1]])
         replace1 = np.greater(samples, llim).all(axis=1)
@@ -64,4 +66,8 @@ def sample(mean, cov, bounds, n):
         replace = np.array(np.logical_and(replace1, replace2)).flatten()
         to_append = samples[replace]
         ret = np.append(ret, to_append, axis=0)
+        if iter > n:
+            print('Error sampling')
+            return False
+        iter += 1
     return ret[:n]

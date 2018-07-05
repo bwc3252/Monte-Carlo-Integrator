@@ -1,11 +1,12 @@
 from __future__ import print_function
 import numpy as np
-from multiprocess import cpu_count, Pool
 from time import time
 import warnings
 import dill
+from scipy.stats import multivariate_normal
 
 import weighted_gmm # a modified implementation of the scikit-learn gmm
+import multivariate_truncnorm as truncnorm # to sample from a truncated multivariate normal distribution
 
 class integrator:
     '''
@@ -18,7 +19,7 @@ class integrator:
     d: Number of dimensions
 
     bounds: A (d x 2) array where each row is [lower_bound, upper_bound] for its
-    correspondind dimension
+    corresponding dimension
 
     gmm_dict: dictionary where each key is a tuple of dimension indicies and each value
     is a either a mixture model object or None.  Must contain all dimensions with no repeats.
@@ -39,31 +40,6 @@ class integrator:
         self.n = (5000 * self.d) # this is a VERY arbitrary choice about the number of
                                  # samples that are necessary
 
-    def evaluate_function_over_sample_array(self, sample_array, func):
-        '''
-        Uses a multiprocessing pool to split up function evaluation over an array of samples.
-
-        Note: func must be a function that takes a numpy array as its parameter and
-              returns a vertical numpy array of function values (e.g. numpy vectorized, etc.)
-        '''
-        n = self.n
-        max_procs = cpu_count() // 2
-        array_list = []
-        length = int(n / max_procs) # length of each split array
-        a = 0
-        # split the sample array
-        while a < max_procs - 1:
-            array_list.append(sample_array[a * length : (a + 1) * length])
-            a += 1
-        # take care of the weird-sized last piece (in case it didn't split evenly)
-        array_list.append(sample_array[a * length : n + 1])
-        p = Pool(max_procs) # create pool
-        value_array_list = p.map(func, array_list)
-        # put results back into one array to return
-        p.close()
-        value_array = np.nan_to_num(np.concatenate(value_array_list))
-        return value_array
-
     def uniform(self, func):
         '''
         Uniformly samples the function, returning n d-dimensional samples and the function
@@ -75,13 +51,13 @@ class integrator:
         llim_array = np.rot90(bounds[:,[0]])
         rlim_array = np.rot90(bounds[:,[1]])
         sample_array = np.random.uniform(llim_array, rlim_array, (n, d))
-        value_array = self.evaluate_function_over_sample_array(sample_array, func)
+        value_array = func(sample_array)
         return sample_array, value_array
 
     def sample_from_gmm(self, gmm_dict, func):
         '''
         Samples each dimension according to the Gaussian Mixture Model for that dimension.
-        If no Mixture model exists, samples uniformly. Returns the n x d array of samples,
+        If no mixture model exists, samples uniformly. Returns the n x d array of samples,
         the responsibility of each sample according to the model, and the function value
         for each sample.
         '''
@@ -89,64 +65,74 @@ class integrator:
         d = self.d
         bounds = self.bounds
         llim_array = np.rot90(bounds[:,[0]])
-        rlim_array = np.rot90(bounds[:,[1]])
         sample_array = np.empty((n, d))
+        sample_array_i = np.empty((n, d))
         p_array = np.ones((n, 1))
+        p_array_i = np.ones((n, 1))
         for dim_group in gmm_dict:
+            # create a matrix of the left and right limits for this set of dimensions
+            new_bounds = np.empty((len(dim_group), 2))
+            index = 0
+            for dim in dim_group:
+                new_bounds[index] = bounds[dim]
+                index += 1
             clf = gmm_dict[dim_group]
-            if clf:
-                # get samples for this set of dimensions
-                print('Standard devation of samples: ', clf)
-                sample_column = clf.sample(n_samples=n)
-                index = 0
-                for dim in dim_group:
-                    # replace zeros with samples
-                    #llim = llim_array[0][dim]
-                    #rlim = rlim_array[0][dim]
-                    #sample_column[sample_column[:,[index]] < llim] = np.random.uniform(llim, rlim)
-                    #sample_column[sample_column[:,[index]] > rlim] = np.random.uniform(llim, rlim)
-                    sample_array[:,[dim]] = sample_column[:,[index]]
-                    index += 1
-                # get responsibilities for samples and take care of orientation, multiply
-                # by existing p_array so that the end product is the total responsibility
-                # for each d-dimensional sample
+            # create empty intermediate arrays for samples
+            sample_column = np.empty((n, len(dim_group)))
+            sample_column_i = np.empty((n, len(dim_group)))
+            if clf is not None:
+                means, covariances, weights = clf.means_, clf.covars_, clf.weights_
+                start = 0
+                end = 0
+                for component in range(len(means)):
+                    mean = means[component]
+                    cov = covariances[component]
+                    weight = weights[component]
+                    interval = int(weight * n)
+                    if component == len(means) - 1:
+                        end = n
+                    else:
+                        end += interval
+                    sample_column[start:end] = np.random.multivariate_normal(mean, cov, end - start)
+                    sample_column_i[start:end] = truncnorm.sample(mean, cov, new_bounds, end - start)
+                    start = end + 1
                 p_array *= np.rot90([np.exp(clf.score(sample_column))], -1)
+                p_array_i *= np.rot90([np.exp(clf.score(sample_column_i))], -1)
             else:
-                # clf doesn't exist yet, sample uniformly
-                for dim in dim_group:
-                    llim = llim_array[0][dim]
-                    rlim = rlim_array[0][dim]
-                    sample_column = np.random.uniform(llim, rlim, (n, 1))
-                    sample_array[:,[dim]] = sample_column
-                    p_array *= 1.0 / (rlim - llim)
-        # get function values
-        value_array = self.evaluate_function_over_sample_array(sample_array, func)
-        return sample_array, p_array, value_array
+                llim = np.rot90(new_bounds[:,[0]])
+                rlim = np.rot90(new_bounds[:,[1]])
+                sample_column = np.random.uniform(llim, rlim, (n, len(dim_group)))
+                sample_column_i = sample_column
+                vol = np.prod(rlim - llim)
+                p_array *= 1.0 / vol
+            index = 0
+            for dim in dim_group:
+                sample_array[:,[dim]] = sample_column[:,[index]]
+                sample_array_i[:,[dim]] = sample_column_i[:,[index]]
+                index += 1
+        value_array = func(sample_array)
+        value_array_i = func(sample_array_i)
+        return sample_array, sample_array_i, p_array, p_array_i, value_array, value_array_i
 
-    def calc_integral(self, sample_array, value_array, p_array):
+    def calc_integral(self, sample_array, value_array, p_array, sample_array_i, value_array_i, p_array_i):
         '''
-        Performs the monte carlo integral for the given function values and responsibilities.
-
-        Note: Ignores samples outside user-specified bounds
+        Performs the monte carlo integration for the given function values and responsibilities.
         '''
         d = self.d
         bounds = self.bounds
         n = self.n
-        # take care of points outside domain
-
-        for dim in range(d):
-            llim = bounds[dim][0]
-            rlim = bounds[dim][1]
-            #print('left lim:', llim, 'right lim:', rlim)
-            sample_column = sample_array[:,[dim]]
-            #print(sample_column)
-            value_array[sample_column < llim] = 0
-            value_array[sample_column > rlim] = 0
-
+        # normalize n to account for truncation
+        llim = np.rot90(bounds[:,[0]])
+        rlim = np.rot90(bounds[:,[1]])
+        n1 = np.greater(sample_array, llim).all(axis=1)
+        n2 = np.less(sample_array, rlim).all(axis=1)
+        normalize = np.array(np.logical_and(n1, n2)).flatten()
+        k = np.sum(normalize) / n
         # do integration
         value_array /= p_array
-        i = np.sum(value_array)
-        return (1.0 / n) * i
+        value_array_i /= p_array_i
+        i = np.sum(value_array_i)
+        return (k / n) * i
 
     def fit_gmm(self, sample_array, value_array, gmm_dict, p_array):
         '''
@@ -156,19 +142,16 @@ class integrator:
         d = self.d
         n_comp = self.n_comp
         t = time()
-        weights = abs(value_array)
+        weights = abs(value_array / p_array)
         for dim_group in gmm_dict:
             clf = gmm_dict[dim_group]
             if not clf:
-                clf = weighted_gmm.WeightedGMM(n_components=n_comp)
-            else:
-                clf.warm_start = True
+                clf = weighted_gmm.WeightedGMM(n_components=n_comp, covariance_type='full')
             samples_to_fit = np.empty((n, len(dim_group)))
             index = 0
             for dim in dim_group:
                 samples_to_fit[:,[index]] = sample_array[:,[dim]]
                 index += 1
-                #clf.warm_start = True put this somewhere
             try:
                 clf.fit(X=samples_to_fit, w=weights)
                 gmm_dict[dim_group] = clf
@@ -181,6 +164,7 @@ class integrator:
                 gmm_dict[dim_group] = None
             if clf:
                 if not clf.converged_:
+                    print('Failed to fit GMM')
                     # mixture model failed to fit, revert to uniform sampling
                     gmm_dict[dim_group] = None
         #print('time to train:', round(time() - t, 2), 'seconds')
@@ -193,23 +177,13 @@ class integrator:
         '''
         n = self.n
         d = self.d
-        bounds = self.bounds
-
-        # take care of points outside domain
-
-        for dim in range(d):
-            llim = bounds[dim][0]
-            rlim = bounds[dim][1]
-            sample_column = sample_array[:,[dim]]
-            value_array[sample_column < llim] = 0
-            value_array[sample_column > rlim] = 0
 
         x = np.average(np.square(value_array))
         y = np.square(np.average(value_array))
         err_squared = (x - y) / n
         return err_squared
 
-    def integrate(self, func):
+    def integrate(self, func, err_thresh=None, max_count=15):
         '''
         Main function to sample the integrand, model each dimension's distribution, and
         iteratively integrate the function and re-train the model until convergence is reached.
@@ -225,7 +199,7 @@ class integrator:
         sample_array, value_array = self.uniform(func)
         count = 0
         total_integral = 0
-        target_count = 5
+        target_count = 10
         total_iters = 0
         integral_list = np.array([])
         weight_list = np.array([])
@@ -235,7 +209,7 @@ class integrator:
         p_array_list = []
         value_array_list = []
         p_array = np.ones((n, 1))
-        while count < target_count:
+        while True:
             total_iters += 1
 
             # the version of the scikit-learn mixture model in use here calls a deprecated
@@ -249,30 +223,37 @@ class integrator:
                 if not gmm_dict:
                     break
                 # sample from newly-fitted GMM
-                sample_array, p_array, value_array = self.sample_from_gmm(gmm_dict, func)
-            #print(sample_array)
-            integral = self.calc_integral(sample_array, value_array, p_array)
+                sample_array, sample_array_i, p_array, p_array_i, value_array, value_array_i = self.sample_from_gmm(gmm_dict, func)
+            integral = self.calc_integral(sample_array, value_array, p_array, sample_array_i, value_array_i, p_array_i)
             print(integral)
             print()
-            err_squared = self.calculate_error(sample_array, value_array)
+            err_squared = self.calculate_error(sample_array_i, value_array_i)
             err = np.sqrt(err_squared)
             # (rough) method to check for convergence
-            if True: #(err / integral) < t:
+            if (err / integral) < t:
                 eff_samp = np.sum(value_array) / np.max(value_array)
                 integral_list = np.append(integral_list, integral)
                 error_list = np.append(error_list, err_squared)
                 weight_list = np.append(weight_list, np.sum(p_array))
                 eff_samp_list = np.append(eff_samp_list, eff_samp)
-                value_array_list.append(value_array)
-                sample_array_list.append(sample_array)
+                value_array_list.append(value_array_i)
+                sample_array_list.append(sample_array_i)
                 p_array_list.append(p_array)
+                temp_weight_list = weight_list / np.sum(weight_list)
+                temp_error_list = error_list * temp_weight_list
+                running_error = np.sqrt(np.sum(temp_error_list))
                 count += 1
-            print('error:', err)
-            print()
+                print('error:', err)
+                print()
+            if count >= target_count and running_error < err_thresh:
+                break
+            if count > max_count:
+                print('max_count reached before error threshold')
+                break
         weight_list /= np.sum(weight_list)
         integral_list *= weight_list
         error_list *= weight_list
         eff_samp_list *= weight_list
-        return {'integral':np.sum(integral_list), 'error':np.sqrt(np.sum(error_list)),
+        return {'integral':np.sum(integral_list), 'error':running_error,
                 'sample_array':sample_array_list, 'value_array':value_array_list,
                 'p_array':p_array_list, 'eff_samp':np.sum(eff_samp_list)}

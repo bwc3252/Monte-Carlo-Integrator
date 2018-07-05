@@ -1,10 +1,11 @@
 from __future__ import print_function
 import numpy as np
 import monte_carlo_integrator as monte_carlo
+import matplotlib.pyplot as plt
 
 
 x_min, x_max = -15, 15 # left and right limits, default to same for each dimension
-dim = 2 # number of dimensions
+dim = 1 # number of dimensions
 bounds = np.array([[x_min, x_max]] * dim) # create array of limits of integration
 gmm_dict = {} # initialize dict used to group dimensions
 n_comp = 2 # number of gaussian components for each dimension
@@ -39,5 +40,6 @@ def integrand(sample_array):
 
 
 integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-result = integrator.integrate(func=integrand)
+result = integrator.integrate(func=integrand, err_thresh=0.01, max_count=30)
+#sample_array = result['sample_array'][-1]
 print('final integral:', result['integral'], 'with error', result['error'])
