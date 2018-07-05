@@ -40,6 +40,6 @@ def integrand(sample_array):
 
 
 integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-result = integrator.integrate(func=integrand, err_thresh=0.01, max_count=30)
+result = integrator.integrate(func=integrand, err_thresh=0.01, max_count=20)
 #sample_array = result['sample_array'][-1]
 print('final integral:', result['integral'], 'with error', result['error'])

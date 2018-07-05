@@ -127,7 +127,7 @@ class integrator:
         n1 = np.greater(sample_array, llim).all(axis=1)
         n2 = np.less(sample_array, rlim).all(axis=1)
         normalize = np.array(np.logical_and(n1, n2)).flatten()
-        k = np.sum(normalize) / n
+        k = float(np.sum(normalize)) / n
         # do integration
         value_array /= p_array
         value_array_i /= p_array_i
