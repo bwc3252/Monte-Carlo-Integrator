@@ -171,13 +171,13 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None):
+    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None, err_thresh=None, max_count=15):
         '''
 
-        This is where I need to add stuff
+        [add documentation]
 
         '''
-        if not n_comp:
+        if n_comp is None:
             print('No n_comp given, assuming 1 component per dimension')
             n_comp = 1
         dim = len(args)
@@ -189,7 +189,7 @@ class MCSampler(object):
 
         # for now, we hardcode the assumption that there are no correlated dimensions
 
-        if not gmm_dict:
+        if gmm_dict is None:
             gmm_dict = {}
             for x in range(dim):
                 gmm_dict[(x,)] = None
@@ -197,7 +197,7 @@ class MCSampler(object):
         # do the integral
 
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-        results = integrator.integrate(func)
+        results = integrator.integrate(func, err_thresh=err_thresh, max_count=max_count)
         integral = results['integral']
         error = results['error']
         eff_samp = results['eff_samp']
