@@ -225,18 +225,19 @@ class gmm:
         if sample_weights is None:
             sample_weights = np.ones((n, 1))
         x_avg = [np.average(sample_array, axis=0, weights=sample_weights.flatten())]
-        print(x_avg)
         weight = np.sum(sample_weights)
         for dim in range(d):
             x_copy = np.copy(x_avg)
             llim = bounds[dim][0]
             rlim = bounds[dim][1]
             ldiff = x_avg[0][dim] - llim
-            rdiff = x_avg[0][dim] - rlim
+            rdiff = rlim - x_avg[0][dim]
             x_copy[0][dim] = llim - ldiff
+            print(x_copy)
             sample_array = np.append(sample_array, x_copy, axis=0)
             sample_weights = np.append(sample_weights, [[weight]], axis=0)
             x_copy[0][dim] = rlim + rdiff
+            print(x_copy)
             sample_array = np.append(sample_array, x_copy, axis=0)
             sample_weights = np.append(sample_weights, [[weight]], axis=0)
         return sample_array, sample_weights

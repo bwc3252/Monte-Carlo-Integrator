@@ -110,17 +110,35 @@ class integrator:
             p_array = np.append(p_array, rotated_p, axis=0)
         return sample_array, value_array, p_array
 
-    def calculate_integral(self):
+    def calculate_results(self):
         # make local copies
         value_array = self.value_array
         p_array = self.p_array
-        value_array /= self.p_array
-        self.integral = (1.0 / self.n) * np.sum(value_array)
+        # get weight of current iteration
+        weight = np.sum(p_array)
+        # calculate variance
+        curr_var = np.var(value_array)
+        # calculate eff_samp
+        curr_eff_samp = np.sum(value_array) / np.max(value_array)
+        # calculate integral
+        value_array /= p_array
+        curr_integral = (1.0 / self.n) * np.sum(value_array)
+        # update results
+        self.integral = ((self.integral * self.prev_weights_sum) + (curr_integral * weight)) / (self.prev_weights_sum + weight)
+        self.var = ((self.var * self.prev_weights_sum) + (curr_var * weight)) / (self.prev_weights_sum + weight)
+        self.eff_samp = ((self.eff_samp * self.prev_weights_sum) + (curr_eff_samp * weight)) / (self.prev_weights_sum + weight)
+        # update weight sum
+        self.prev_weights_sum += weight
 
-    def integrate(self, func):
-        for i in range(10):
+
+    def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03):
+        count = 0
+        while count < max_iter:
             self.sample()
             self.value_array = func(self.sample_array)
             self.train()
-            self.calculate_integral()
-            print(self.integral)
+            self.calculate_results()
+            print(self.integral, '+/-', np.sqrt(self.var), 'with eff_samp', self.eff_samp)
+            count += 1
+            if count >= min_iter and self.var < var_thresh:
+                break
