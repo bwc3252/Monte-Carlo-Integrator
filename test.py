@@ -1,7 +1,9 @@
 from __future__ import print_function
 import numpy as np
 import monte_carlo_integrator as monte_carlo
+
 import matplotlib.pyplot as plt
+
 
 
 x_min, x_max = -15, 15 # left and right limits, default to same for each dimension
@@ -39,8 +41,14 @@ def integrand(sample_array):
     return value_array
 
 
+# initialize the integrator with the correct parameters
 integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-integrator.integrate(integrand)
-#result = integrator.integrate(func=integrand, err_thresh=0.01, max_count=20)
-#sample_array = result['sample_array'][-1]
-#print('final integral:', result['integral'], 'with error', result['error'])
+# integrate the function
+integrator.integrate(integrand, var_thresh=0.0001)
+# print the gmm parameters
+for dim_group in integrator.gmm_dict:
+    model = integrator.gmm_dict[dim_group]
+    model.print_params()
+samples = integrator.sample_array
+plt.hist(samples, 50)
+plt.show()

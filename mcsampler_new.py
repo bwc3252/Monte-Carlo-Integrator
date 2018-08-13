@@ -171,7 +171,7 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None, err_thresh=None, max_count=15):
+    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False):
         '''
 
         [add documentation]
@@ -196,15 +196,22 @@ class MCSampler(object):
 
         # do the integral
 
-        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
-        results = integrator.integrate(func, err_thresh=err_thresh, max_count=max_count)
+        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, reflect=reflect)
+        integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
+        integral = integrator.integral
+        var = integrator.var
+        eff_samp = integrator.eff_samp
+        sample_array = integrator.sample_array
+        value_array = integrator.value_array
+        p_array = integrator.p_array
+        '''
         integral = results['integral']
         error = results['error']
         eff_samp = results['eff_samp']
         sample_array = results['sample_array'][-1]
         value_array = results['value_array'][-1]
         p_array = results['p_array'][-1]
-
+        '''
         # populate dictionary
 
         index = 0
@@ -220,7 +227,7 @@ class MCSampler(object):
             numpy.savetxt('mcsampler_data.txt', dat_out,
                         header=" ".join(['sample_array', 'value_array', 'p_array']))
 
-        return integral, error, eff_samp, results
+        return integral, var, eff_samp, {}
 
 
 ##############################################################

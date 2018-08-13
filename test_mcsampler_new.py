@@ -1,3 +1,4 @@
+from __future__ import print_function
 import mcsampler_new
 import numpy as np
 
@@ -22,11 +23,6 @@ def integrand(sample_array):
 
 sampler = mcsampler_new.MCSampler()
 sampler.add_parameter('x', left_limit=-12, right_limit=12)
-result_dict = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True, err_thresh=.02, max_count=25)[3] # do a 1-d integral
-value_array = result_dict['value_array'][-1]
-p_array = result_dict['p_array'][-1]
-sample_array = result_dict['sample_array'][-1]
-value_array *= p_array
-integral = result_dict['integral']
-err = result_dict['error']
-print('integral:', integral, 'with error', err)
+integral, var, eff_samp = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True, var_thresh=0.02) # do a 1-d integral
+print('\nFinal result:')
+print(integral, 'with variance', var, 'and eff_samp', eff_samp)
