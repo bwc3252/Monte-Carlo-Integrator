@@ -17,9 +17,14 @@ $p(x)$. The Monte Carlo integral over $V$ is
 \end{equation}
 The variance estimate for this integral is given by
 \begin{equation}
-    Var = {{\big \langle f(x)^2 \big \rangle - \big \langle f(x)
-    \big \rangle^2} \over N}.
+    Var = {1 \over N^2}{\sum\limits_{n=0}^{N} {(g(x_n) - \langle g \rangle)}^2},
 \end{equation}
+where
+\begin{equation}
+    g(x_n) = {f(x_n) \over {p(x_n)}}
+\end{equation}
+and $\langle g \rangle$ is the average of $g(x_n)$ over $n$. \\
+
 In order to reduce this variance without increasing the number of points
 sampled, the distribution $p(x)$ is chosen to approximate $f(x)$. This is done
 by iteratively sampling from a Gaussian Mixture Model (GMM), integrating using
