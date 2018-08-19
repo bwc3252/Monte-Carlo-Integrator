@@ -1,9 +1,10 @@
 \documentclass{article}
 \usepackage{mathtools}
+\usepackage{mathrsfs}
 \newcommand{\vect}[1]{\boldsymbol{#1}}
 
 \title{Monte Carlo Integrator}
-\date{July 15, 2018}
+\date{August 19, 2018}
 \author{Ben Champion \\ bwc3252@rit.edu}
 \begin{document}
 \maketitle
@@ -13,17 +14,17 @@
 The integrand $f(x)$ is sampled over a domain $V$ according to a distribution
 $p(x)$. The Monte Carlo integral over $V$ is
 \begin{equation}
-    I = {{V \over N} \sum_{n=0}^{N} {f(x_n) \over {p(x_n)}}}.
+    I = {{1 \over N} \sum_{n=0}^{N} {f(x_n) \over {p(x_n)}}}.
 \end{equation}
 The variance estimate for this integral is given by
 \begin{equation}
-    Var = {1 \over N^2}{\sum\limits_{n=0}^{N} {(g(x_n) - \langle g \rangle)}^2},
+    \sigma^2 = {1 \over N^2}{\sum\limits_{n=0}^{N} {(g(x_n) - \langle g \rangle)}^2},
 \end{equation}
 where
 \begin{equation}
-    g(x_n) = {f(x_n) \over {p(x_n)}}
+    g(x) = {f(x) \over {p(x)}}
 \end{equation}
-and $\langle g \rangle$ is the average of $g(x_n)$ over $n$. \\
+and $\langle g \rangle$ is the average of $g(x)$ over $n$. \\
 
 In order to reduce this variance without increasing the number of points
 sampled, the distribution $p(x)$ is chosen to approximate $f(x)$. This is done
@@ -34,11 +35,25 @@ falls below a certain threshold. When training the GMM each sample is weighted
 by the ratio of its function value to its responsibility under the current
 distribution, or
 \begin{equation}
-    w(x_n) = \left| {f(x_n) \over p(x_n)} \right|.
+    w(x) = \left| {f(x) \over p(x)} \right|.
 \end{equation}
 Weighting the samples in this way means that the integrator will converge to
 the correct distribution regardless of how the first iteration is sampled. In
-practice, the first iteration is sampled uniformly.
+practice, the first iteration is usually sampled uniformly, although the user
+can provide samples and responsibilities from any prior distribution for the
+first iteration.
+
+Each iteration, the integral result and variance are updated with a running
+average. The total integral is
+\begin{equation}
+    I_{total} = {{M I_{prev} + I} \over {M + 1}},
+\end{equation}
+where $M$ is the number of previous iterations. Note that this weighting scheme
+assumes that the same number of samples $n$ is used for each iteration. The
+updated variance is
+\begin{equation}
+    \sigma^2_{total} = {{M \sigma^2_{prev} + \sigma^2} \over {M + 1}}.
+\end{equation}
 
 \section{Initialization}
 
@@ -54,65 +69,31 @@ parameters:
 \texttt{[left\_limit, right\_limit]} for its corresponding dimension
 
 \item \texttt{gmm\_dict}: Python dictionary where each key is a tuple of
-dimensions and each value is either a sklearn gmm object or \texttt{None}
+dimensions and each value is either a GMM object or \texttt{None}
 
 \item \texttt{n\_comp}: Number of Gaussian components per mixture model
 
 \end{enumerate}
 The integrator is called using \texttt{monte\_carlo\_integrator.integrate(func)},
-where \texttt{func} is a numpy vectorized function. The \texttt{err\_thresh} and
-\texttt{max\_count} parameters can also be specified when calling the integrator.
+where \texttt{func} is a numpy vectorized function. The \texttt{var\_thresh},
+\texttt{min\_iter}, and \texttt{max\_iter} parameters can also be specified when
+calling the integrator.
 
-\section{Gaussian Mixture Model}
-
-\subsection{Basic Gaussian Mixture Model Implementation}
-
-The Gaussian mixture model implemented in \texttt{gaussian\_mixture\_model.py}
-fits a mixture of \texttt{k} Gaussians to a set of weighted data using the
-expectation-maximization (EM) algorithm.
-
-\section{Training the GMM}
-
-The function \texttt{fit\_gmm()}
-fits a Gaussian Mixture Model (GMM) to each group of dimensions specified by
-\texttt{gmm\_dict}. Note that in training the GMM, samples drawn from a full,
-untruncated sampling distribution are used.\\
-
-The weights used to fit the mixture model are given by
-
-\begin{equation}
-    weights = \left|value\_array \over p\_array\right|
-\end{equation}
-where \texttt{value\_array} is a vertical array of function values for each
-point, and \texttt{p\_array} is a vertical array of the responsibility of each
-point under the current sampling distribution. \\
-
-For each set of dimensions in \texttt{gmm\_dict}, the samples for that set of
-dimensions are placed in a temporary array, and if a corresponding sklearn gmm
-object does not already exist (i.e. \texttt{gmm\_dict[dim\_group] == None}), one
-is initialized. The GMM is then trained using
-\texttt{fit(X=samples\_to\_fit, w=weights)}, and \texttt{gmm\_dict} is updated
-with the new GMM. \\
-
-If sklearn is unable to fit a GMM to the data, \texttt{gmm\_dict} is updated
-with \texttt{None}.
-
-\section{Sampling}
-
-\subsection{Truncated Multivariate Gaussian Samples}
+\section{Truncated Multivariate Gaussian Samples}
 
 The file \texttt{multivariate\_truncnorm.py} provides a \texttt{sample()}
 function to draw samples from a multivariate normal distribution inside a set of
 d-dimensional rectangular bounds. The parameters of \texttt{sample()} are the
 mean and covariance of the distribution, the bounds of the sampling region, and
-the number of samples to draw. \\
+the number of samples to draw.
+
+\subsection{Standard Multivariate Gaussian Sampling}
 
 In general, multivariate Gaussian samples can be generated by sampling from a
 Gaussian that is centered at the origin with a covariance of 1, applying a
 linear transformation determined from the covariance matrix, and shifting the
 resulting samples so that the mean falls in the correct place. For a covariance
 matrix $\Sigma$ and mean $\mu$, the final samples are generated as
-
 \begin{equation}
     x' = \lambda^{1/2} \phi x + \mu,
 \end{equation}
@@ -120,11 +101,13 @@ where $x'$ is the final sample, $\lambda$ is diagonal matrix of the eigenvalues
 of $\Sigma$, $\phi$ is a matrix of the eigenvectors of $\Sigma$, and $x$ is the
 original "base sample." \\
 
+\subsection{Fast Modified Rejection Sampling}
+
 Truncated samples are generated through a similar process. Scipy's
 \texttt{truncnorm} can be used to generate univariate truncated Gaussian
 samples. Univariate samples with covariance 1 and mean 0 are used to create an
 array of multivariate samples centered at the origin with covariance 1. The
-above transformation (equation 5) is used to create truncated samples from the
+above transformation is used to create truncated samples from the
 desired distribution. \\
 
 The problem with this approach, however, is that the bounds are transformed
@@ -135,113 +118,229 @@ than is required and rejecting the samples that fall outside the bounds after
 being transformed. \\
 
 These new bounds are determined using the inverse of the transformation, or
-
 \begin{equation}
     r = [\lambda^{1/2} \phi]^{-1}.
 \end{equation}
 
 Each corner point of the desired sampling region is transformed by $r$ to find
 the new, transformed corner points.  The minimum and maximum coordinates for
-each dimension describe the smallest rectangular region that, when transformed
-using equation 5, will contain the desired region. \\
+each dimension describe the smallest rectangular region that, when transformed,
+will contain the desired region. \\
 
 Unlike traditional rejection sampling, where points are sampled from the entire
 distribution and then truncated in the end, this method will not suffer drops in
 efficiency based on where the mean of the distribution is in relation to the
 bounds. Instead, the limiting factor is the geometry of the transformation.
 
+\section{Gaussian Mixture Model}
+
+\subsection{Basic Gaussian Mixture Model Implementation}
+
+The Gaussian mixture model implemented in \texttt{gaussian\_mixture\_model.py}
+fits a mixture of $k$ Gaussians to a set of weighted data using the
+expectation-maximization (EM) algorithm. \\
+
+The EM algorithm fits the $k$ Gaussians, described by $\mu_k$ (the means),
+$\Sigma_k$ (the covariances), and $\pi_k$ (the weights), such that the likelihood
+of the model $\mathscr{L}$ is maximized. For data points $x$ and sample weights
+$w$,
+\begin{equation}
+    \mathscr{L} = \prod_n P(x_n).
+\end{equation}
+$P(x)$ is the probability of each point $x$ under the current model, or
+\begin{equation}
+    P(x_n) = w_n \sum_{k} N(x_n | \mu_k, \Sigma_k) \pi_k,
+\end{equation}
+where $N(x_n | \mu_k, \Sigma_k)$ is the multivariate Gaussian density,
+\begin{equation}
+    N(x | \mu, \Sigma) = {1 \over {(2\pi)^{D/2} \det(\Sigma)^{1/2}}}
+    \exp[-{1 \over 2} (x - \mu) \cdot \Sigma^{-1} \cdot (x - \mu)].
+\end{equation}
+$P(x)$ can be split into the $k$ individual probabilities for each $x$:
+\begin{equation}
+    p_{nk} = {{N(x_n | \mu_k, \Sigma_k) \pi_k w_n} \over P(x_n)}
+\end{equation}
+The above equations describe the expectation step (E-step) of the EM
+algorithm. The means, covariances, and mixture weights are estimated from
+$p_{nk}$ in the maximization step (M-step) as follows.
+\begin{equation}
+    \mu_k = \sum_{n} p_{nk} x_n \Big/ \sum_{n} p_{nk}
+\end{equation}
+\begin{equation}
+    \Sigma_k = \sum_{n} p_{nk} (x_n - \mu_k) (x_n - \mu_k) \Big/ \sum_{n} p_{nk}
+\end{equation}
+\begin{equation}
+    \pi_k = {1 \over N} \sum_{n} p_{nk}
+\end{equation}
+
+The iterative EM algorithm is initilized by guessing initial values for the means,
+covariances, and mixture weights. The initial means are randomly selected from the
+training data (being careful to avoid repeats), the covarainces are each initialized
+as the D-dimensional identity matrix, and the mixture weights are initialized as
+$1/k$. An E-step is done to get a new $p_{nk}$ array, and then an M-step is done
+to estimate new means, covariances, and weights. This is repeated until the
+change in $\mathscr{L}$ is below a predetermined threshold.
+
+\subsection{Iterative Update of the Gaussian Mixture Model}
+
+The standard expectation-maximization algorithm has been modified to allow
+iterative, online updates of the model by calling \texttt{model.update()} with
+a new set of samples and weights. A new GMM is first trained using the new data.
+Each component $k$ in the new model is then matched to a component $j$ in the old
+model in such a way as to minimize the total Mahalanobis distance $D_M$ between
+all of the means:
+\begin{equation}
+    \sum M_D = \sum_{j,k=0}^{K} (\sqrt{(\mu_j - \mu_k)^T\Sigma_k^{-1}(\mu_j - \mu_k)}
+    + \sqrt{(\mu_k - \mu_j)^T\Sigma_j^{-1}(\mu_k - \mu_j)})
+\end{equation}
+The combination of components which minimizes $\sum M_D$ is the one that is kept. \\
+
+Once the components have been matched, they are combined. Parameters of the old
+model are denoted with a $j$, parameters of the new model are denoted with a
+$k$, $N$ represents the total number of points the old model has been trained
+on, $M$ is the number of samples in the new batch, and $\pi$ represents
+component weights.
+\begin{equation}
+    \mu = {{N\pi_j\mu_j + M\pi_k\mu_k} \over {N\pi_j + M\pi_k}}
+\end{equation}
+\begin{equation}
+    \Sigma = {{N\pi_j\Sigma_j + M\pi_k\Sigma_k} \over {N\pi_j + M\pi_k}}
+    + {{N\pi_j\mu_j\mu_j^T + M\pi_k\mu_k\mu_k^T} \over {N\pi_j + M\pi_k}}
+    - \mu\mu^T
+\end{equation}
+\begin{equation}
+    \pi = {{N\pi_j + M\pi_k} \over {N + M}}
+\end{equation}
+
+\subsection{Scoring Samples}
+
+The \texttt{score()} function takes an array of samples $x_n$ and returns an
+array of probability densities. For samples drawn from an untruncated distribution
+this is simply the sum of the multivariate Gaussian probability densities of each
+point $x$ for each mixture component $k$,
+\begin{equation}
+    p(x_n) = \sum_{k} N(x_n | \mu_k, \Sigma_k),
+\end{equation}
+\begin{equation}
+    N(x | \mu, \Sigma) = {1 \over {(2\pi)^{D/2} \det(\Sigma)^{1/2}}}
+    \exp[-{1 \over 2} (x - \mu) \cdot \Sigma^{-1} \cdot (x - \mu)].
+\end{equation}
+
+If $x_n$ is drawn from a truncated distribution, however, $p(x_n)$ must be corrected
+for this truncation (because the PDF of a distribution must integrate to 1).
+An approximation of the necessary correction using a simple Monte Carlo method is
+generally enough. \\
+
+$n$ samples $x'$ are drawn from a full, untruncated distribution
+according to the model's parameters. The correction constant $m$ is the
+fraction of points in $x'$ that fall inside the provided bounds. This ratio can
+be determined quickly using numpy's \texttt{less()}, \texttt{greater()}, and
+\texttt{logical\_and()} functions. The scores given by $p(x_n)$ are then divided
+by $m$.
+
 \subsection{Sampling from the GMM}
 
-The function \texttt{sample\_from\_gmm()} takes \texttt{gmm\_dict} and the
-integrand \texttt{func} as parameters. Two empty arrays,
-\texttt{sample\_array} (for untruncated samples) and \texttt{sample\_array\_i}
-(for truncated samples) are initialized. Two arrays of ones, \texttt{p\_array}
-and \texttt{p\_array\_i}, are initialized to hold the corresponding sample
-responsibilities. For each group of dimensions in \texttt{gmm\_dict}, if
-\texttt{gmm\_dict[dim\_group]} is a sklearn gmm object, that group of dimensions
- is sampled as follows: \\
+The \texttt{sample()} function in \texttt{gaussian\_mixture\_model.py} generates
+$N$ Gaussian samples according to the current model. For each component in $k$,
+$n = \lfloor N\pi_k \rfloor$ samples are generated with mean $\mu_k$ and
+covariance $\Sigma_k$. The final set of samples has $n$ such that the desired
+number of samples $N$ is reached. \\
 
-The lists of means, covariances, and component weights are retrieved from the
-gmm. For each component, the number of samples to draw is
-
-\begin{equation}
-    n = N \cdot w,
-\end{equation}
-where $N$ is the total number of samples to draw and $w$ is the weight of the
-component. Using the corresponding mean and covariance matrix, $n$ samples are
-drawn from an untruncated distribution using numpy's
-\texttt{multivariate\_normal} and put in \texttt{sample\_array}, and
-$n$ samples are drawn from a truncated distribution using
-\texttt{multivariate\_truncnorm} and put in \texttt{sample\_array\_i}. This is
-done for each component in the current gmm. \\
-
-The partial responsibilities for both sets of samples are found using sklearn's
-\texttt{score()} function. These responsibilities are multiplied by
-\texttt{p\_array} or \texttt{p\_array\_i}, depending on which array of samples
-they correspond with. \\
-
-This is repeated for every set of dimensions in \texttt{gmm\_dict}. The final
-responsibility for each sample $x$ is
-
-\begin{equation}
-    p(x) = \prod_{m=0}^{M} p(x_m),
-\end{equation}
-where $p(x_m)$ is the responsibility of the group of dimensions $m$, and $M$ is
-the total number of groups of dimensions. \\
-
-If \texttt{gmm\_dict[dim\_group]} has no sklearn gmm object, it is sampled
-uniformly, and the responsibilities are updated as
-
-\begin{equation}
-    p(x) = p_{prev.}(x) \prod_{d=0}^{D} {1 \over {rlim_d - llim_d}},
-\end{equation}
-where $D$ is the total number of dimensions in the group of dimensions, and
-$rlim_d$ and $llim_d$ describe the left and right limits of dimension d,
-accordingly. This essentially amounds to dividing $p(x)$ by the D-dimensional
-volume of the region the samples are taken from.
-
-\section{Integration}
-
-$p(x)$ is the PDF of the current sampling distribution. For an array of samples
-from $p(x)$ \texttt{sample\_array}, \texttt{k} is the fraction of samples in
-\texttt{sample\_array} that fall inside the limits of integration.
-\texttt{sample\_array\_i} is an array of samples from $p(x)$ that is truncated
-at the the limits of integration, and \texttt{p\_array\_i} is an array of the
-responsibility of each point in \texttt{sample\_array\_i} according to $p(x)$.
-\texttt{value\_array\_i} is the function value at each point in
-\texttt{sample\_array\_i}. The integral \texttt{I} is then
-
-\begin{equation}
-    I ={ k \over N} \sum {value\_array\_i \over p\_array\_i}.
-\end{equation}
-
-The ratio \texttt{k} is necessary because $p(x)$ is only normalized to 1 on an
-infinite domain. The points in \texttt{sample\_array\_i} are sampled from a
-finite domain, so their responsibilities \texttt{p\_array\_i} must be adjusted
-by a constant factor \texttt{k} to renormalize them.
+If the user does not specify bounds when calling the \texttt{sample()} function,
+samples are generated using numpy's \texttt{multivariate\_normal()}. However,
+the Monte Carlo integrator always specifies bounds, so the \texttt{sample()}
+function from \texttt{multivariate\_truncnorm} is used instead.
 
 \section{Iterative Algorithm}
 
-On the first iteration the integrand is sampled uniformly and \texttt{p\_array}
-is an array of ones. This means that the training weights are the function
-values. The GMM is trained using these samples, and new samples are drawn according
-to it. The integral and error are calculated (the error is the square root of
-the variance). The GMM is retrained using the new samples and function values,
-and this process is iteratively repeated until one or more of the stopping
-conditions is met. \\
+The algorithm's main function, \texttt{integrate()}, is:
+\begin{verbatim}
+def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03):
+    while self.iterations < max_iter:
+        self.sample()
+        self.value_array = func(self.sample_array)
+        self.calculate_results()
+        print(self.integral)
+        self.iterations += 1
+        if self.iterations >= min_iter and self.var < var_thresh:
+            break
+        self.train()
+\end{verbatim}
 
-After calculating the integral and error, if the error is small enough relative
-to the size of the integral, the integral and variance are added to lists which
-keep track of each iteration. The running variance is calculated as the weighted
-average of the variance for each iteration, and the running error is the square
-root of this variance. The weights are the normalized sums of the
-responsibilities of the samples for each iteration. \\
+\subsection{Sampling}
 
-The algorithm stops when either the desired error threshold is met or the
-maximum number of iterations is reached. To avoid the integrator stopping too
-early, it will only stop after a minimum number of iterations is reached,
-regardless of the running error. The final integral is the weighted average
-of each individual integral, where the weights are once again the sums of the
-sample responsibilities for each iteration.
+The first step in the algorithm is to sample the domain of integration.
+If an array of prior samples and responsibilities is not provided by the user,
+the initial prior is assumed to be uniform. The \texttt{sample()} function
+populates the \texttt{sample\_array} and \texttt{p\_array} objects. \\
+
+\texttt{sample\_array} is initialized as an empty $(N \times d)$ array, and
+\texttt{p\_array} is initialized as a $(N \times 1)$ array of ones. For each
+group of dimensions in \texttt{gmm\_dict}, if \texttt{gmm\_dict[dim\_group]} is
+a GMM object, samples are generated using \texttt{gaussian\_mixture\_model.sample()}.
+Each column in this new array of samples is placed in its corresponding column in
+\texttt{sample\_array} (based on the dimensions in the current \texttt{dim\_group}).
+The samples are scored using \texttt{gaussian\_mixture\_model.score()}, and
+\texttt{p\_array} is multiplied by these scores. \\
+
+If \texttt{gmm\_dict[dim\_group]} is \texttt{None}, that set of dimensions is
+sampled uniformly. For left limits $a$ and right limits $b$, the scores for this
+group of dimensions are
+\begin{equation}
+    p(x) = \prod_{d} {1 \over {b_d - a_d}},
+\end{equation}
+which are again multiplied with \texttt{p\_array}. These scores can be seen as
+the inverse of the volume of the region from which the samples are taken. The
+final responsibilities are
+\begin{equation}
+    p(x) = \prod_{q=0}^{Q} p_q(x),
+\end{equation}
+where each $q$ is a set of dimensions and $p_q(x)$ is the corresponding
+responsibility of $x$ in that set of dimensions.
+
+\subsection{Calculating Results}
+
+The integrand $f(x)$ is evaluated over \texttt{sample\_array} and \texttt{value\_array}
+is populated with the result. The current integral and variance are calculated
+as
+\begin{equation}
+    I = {{1 \over N} \sum_{n=0}^{N} {f(x_n) \over {p(x_n)}}}.
+\end{equation}
+\begin{equation}
+    \sigma^2 = {1 \over N^2}{\sum\limits_{n=0}^{N} {(g(x_n) - \langle g \rangle)}^2},
+\end{equation}
+where
+\begin{equation}
+    g(x) = {f(x) \over {p(x)}}
+\end{equation}
+and $\langle g \rangle$ is the average of $g(x)$ over $n$. \\
+
+The total integral and variance are updated each iteration using a weighted average
+over all iterations. The total integral is
+\begin{equation}
+    I_{total} = {{M I_{prev} + I} \over {M + 1}},
+\end{equation}
+where $M$ is the total number of previous iterations, and the total variance is
+\begin{equation}
+    \sigma^2_{total} = {{M \sigma^2_{prev} + \sigma^2} \over {M + 1}}.
+\end{equation}
+
+The "effective" number of samples, $n_{eff}$, is also updated each iteration. Let
+$G(x)$ be the cumulative history of $g(x)$ over all iterations, then
+\begin{equation}
+    n_{eff} = {1 \over \max{G(x)}} \sum_{n=0}^{N (M+1)} G(x_n).
+\end{equation}
+
+\subsection{Training}
+
+For each group of dimensions in \texttt{gmm\_dict}, the corresponding samples
+are placed in a temporary array. If \texttt{gmm\_dict[dim\_group]} is
+\texttt{None}, a new GMM oject is initialized. The model is then fit using
+\texttt{model.fit()}. If \texttt{gmm\_dict[dim\_group]} is a GMM object,
+an update is done using \texttt{model.update()}. In either case, the sample
+weights are
+\begin{equation}
+    w(x) = \left| {f(x) \over p(x)} \right|.
+\end{equation}
 
 \end{document}
