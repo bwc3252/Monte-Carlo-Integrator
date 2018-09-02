@@ -37,7 +37,7 @@ class integrator:
     prior_pdf (1 x n numpy array): User-provided responsibilities for prior samples
     '''
 
-    def __init__(self, d, bounds, gmm_dict, n_comp, reflect=False, trunc_corr=False,
+    def __init__(self, d, bounds, gmm_dict, n_comp, n=None, reflect=False, trunc_corr=False,
                     prior_samples=None, prior_pdf=None):
         # user-specified parameters
         self.d = d
@@ -50,7 +50,10 @@ class integrator:
         self.prior_pdf = prior_pdf
         # constants
         self.t = 0.02 # percent estimated error threshold
-        self.n = (5000 * self.d) # number of samples per batch
+        if n is None:
+            self.n = (5000 * self.d) # number of samples per batch
+        else:
+            self.n = n
         # integrator object parameters
         self.sample_array = None
         self.value_array = None
@@ -123,9 +126,9 @@ class integrator:
             if model is None:
                 # model doesn't exist yet
                 model = GMM.gmm(new_n_comp)
-                model.fit(temp_samples, sample_weights=weights, bounds=new_bounds, trunc_corr=self.trunc_corr)
+                model.fit(temp_samples, sample_weights=weights, bounds=new_bounds)
             else:
-                model.update(temp_samples, sample_weights=weights, bounds=new_bounds, trunc_corr=self.trunc_corr)
+                model.update(temp_samples, sample_weights=weights, bounds=new_bounds)
             self.gmm_dict[dim_group] = model
 
 
@@ -134,6 +137,9 @@ class integrator:
         sample_array = self.sample_array
         value_array = self.value_array
         p_array = self.p_array
+        samples_to_append = np.empty((0, self.d))
+        values_to_append = np.empty((0, 1))
+        p_to_append = np.empty((0, 1))
         # get rotated arrays of function values and responsibilities
         rotated_values = np.flipud(value_array)
         rotated_p = np.flipud(p_array)
@@ -148,9 +154,9 @@ class integrator:
                 rlim = self.bounds[dim][0]
                 right[:,[dim]] += 2 * rlim
                 # append things
-                sample_array = np.append(sample_array, right, axis=0)
-                value_array = np.append(value_array, value_array, axis=0)
-                p_array = np.append(p_array, p_array, axis=0)
+                samples_to_append = np.append(samples_to_append, right, axis=0)
+                values_to_append = np.append(values_to_append, value_array, axis=0)
+                p_to_append = np.append(p_to_append, p_array, axis=0)
                 new_n_comp += self.n_comp
             if self.reflect[dim][0]: # left side needs reflected
                 # get a copy of samples
@@ -161,10 +167,14 @@ class integrator:
                 llim = self.bounds[dim][0]
                 left[:,[dim]] += 2 * llim
                 # append things
-                sample_array = np.append(sample_array, left, axis=0)
-                value_array = np.append(value_array, rotated_values, axis=0)
-                p_array = np.append(p_array, rotated_p, axis=0)
+                samples_to_append = np.append(samples_to_append, left, axis=0)
+                values_to_append = np.append(values_to_append, rotated_values, axis=0)
+                p_to_append = np.append(p_to_append, rotated_p, axis=0)
                 new_n_comp += self.n_comp
+            # append things
+            sample_array = np.append(sample_array, samples_to_append, axis=0)
+            value_array = np.append(value_array, values_to_append, axis=0)
+            p_array = np.append(p_array, p_to_append, axis=0)
         return sample_array, value_array, p_array, new_n_comp
 
     def calculate_results(self):

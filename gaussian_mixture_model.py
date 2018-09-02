@@ -214,26 +214,6 @@ class gmm:
             start = end
         return sample_array
 
-    def trunc_correction(self, sample_array, bounds, sample_weights=None):
-        n, d = sample_array.shape
-        if sample_weights is None:
-            sample_weights = np.ones((n, 1))
-        x_avg = [np.average(sample_array, axis=0, weights=sample_weights.flatten())]
-        for dim in range(d):
-            x_copy = np.copy(x_avg)
-            llim = bounds[dim][0]
-            rlim = bounds[dim][1]
-            weight = np.sum(sample_weights) / (rlim - llim)
-            ldiff = x_avg[0][dim] - llim
-            rdiff = rlim - x_avg[0][dim]
-            x_copy[0][dim] = llim - ldiff
-            sample_array = np.append(sample_array, x_copy, axis=0)
-            sample_weights = np.append(sample_weights, [[weight]], axis=0)
-            x_copy[0][dim] = rlim + rdiff
-            sample_array = np.append(sample_array, x_copy, axis=0)
-            sample_weights = np.append(sample_weights, [[weight]], axis=0)
-        return sample_array, sample_weights
-
 
     def print_params(self):
         for i in range(self.k):

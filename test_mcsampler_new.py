@@ -23,6 +23,6 @@ def integrand(sample_array):
 
 sampler = mcsampler_new.MCSampler()
 sampler.add_parameter('x', left_limit=-12, right_limit=12)
-integral, var, eff_samp = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True, var_thresh=0.02) # do a 1-d integral
+integral, var, eff_samp, _ = sampler.integrate(integrand, args=('x',), n_comp=2, write_to_file=True, var_thresh=0.02) # do a 1-d integral
 print('\nFinal result:')
 print(integral, 'with variance', var, 'and eff_samp', eff_samp)
