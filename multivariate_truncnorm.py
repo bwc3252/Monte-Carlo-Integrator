@@ -50,7 +50,7 @@ def sample(mean, cov, bounds, n):
     mean = np.matrix(mean)
     d = len(bounds)
     q = get_multipliers(cov)
-    new_bounds = get_new_bounds(bounds - mean, q)
+    new_bounds = get_new_bounds(bounds - np.rot90(mean, -1), q)
     llim_new = new_bounds[:,[0]]
     rlim_new = new_bounds[:,[1]]
     ret = np.empty((0, d))

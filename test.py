@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 
 
-x_min, x_max = -4, 4 # left and right limits, default to same for each dimension
+x_min, x_max = -15, 15 # left and right limits, default to same for each dimension
 dim = 1 # number of dimensions
 bounds = np.array([[x_min, x_max]] * dim) # create array of limits of integration
 gmm_dict = {} # initialize dict used to group dimensions

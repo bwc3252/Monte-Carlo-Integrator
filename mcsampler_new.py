@@ -171,7 +171,9 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False):
+    def integrate(self, func, args, n_comp=None, write_to_file=False, gmm_dict=None,
+                var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
+                mcsamp_func=None, integrator_func=None):
         '''
 
         [add documentation]
@@ -196,7 +198,7 @@ class MCSampler(object):
 
         # do the integral
 
-        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, reflect=reflect)
+        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, reflect=reflect, user_func=integrator_func)
         integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
         integral = integrator.integral
         var = integrator.var
@@ -204,6 +206,10 @@ class MCSampler(object):
         sample_array = integrator.sample_array
         value_array = integrator.value_array
         p_array = integrator.p_array
+
+        # user-defined function
+        if mcsamp_func is not None:
+            mcsamp_func(self, integrator)
         '''
         integral = results['integral']
         error = results['error']

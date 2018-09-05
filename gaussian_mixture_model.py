@@ -38,7 +38,10 @@ class estimator:
             mean = self.means[index]
             cov = self.covariances[index]
             log_p = np.log(self.weights[index])
-            log_pdf = np.rot90([multivariate_normal.logpdf(x=sample_array, mean=mean, cov=cov)], -1) # (16.1.4)
+            log_pdf = np.rot90([multivariate_normal.logpdf(x=sample_array, mean=mean, cov=cov, allow_singular=True)], -1) # (16.1.4)
+            # note that allow_singular=True in the above line is probably really dumb and
+            # terrible, but it seems to occasionally keep the whole thing from blowing up
+            # so it stays for now
             p_nk[:,[index]] = log_pdf + log_p # (16.1.5)
         p_xn = logsumexp(p_nk, axis=1, keepdims=True) # (16.1.3)
         self.p_nk = p_nk - p_xn # (16.1.5)
@@ -180,7 +183,10 @@ class gmm:
             w = self.weights[i]
             mean = self.means[i]
             cov = self.covariances[i]
-            scores += np.rot90([multivariate_normal.pdf(x=sample_array, mean=mean, cov=cov)], -1) * w
+            scores += np.rot90([multivariate_normal.pdf(x=sample_array, mean=mean, cov=cov, allow_singular=True)], -1) * w
+            # note that allow_singular=True in the above line is probably really dumb and
+            # terrible, but it seems to occasionally keep the whole thing from blowing up
+            # so it stays for now
         if bounds is not None:
             # we need to renormalize the pdf
             # to do this we sample from a full distribution (i.e. without truncation) and use the

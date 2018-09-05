@@ -38,7 +38,7 @@ class integrator:
     '''
 
     def __init__(self, d, bounds, gmm_dict, n_comp, n=None, reflect=False, trunc_corr=False,
-                    prior_samples=None, prior_pdf=None):
+                    prior_samples=None, prior_pdf=None, user_func=None):
         # user-specified parameters
         self.d = d
         self.bounds = bounds
@@ -48,6 +48,7 @@ class integrator:
         self.trunc_corr = trunc_corr
         self.prior_samples = prior_samples
         self.prior_pdf = prior_pdf
+        self.user_func=user_func
         # constants
         self.t = 0.02 # percent estimated error threshold
         if n is None:
@@ -209,3 +210,5 @@ class integrator:
             if self.iterations >= min_iter and self.var < var_thresh:
                 break
             self.train()
+            if self.user_func is not None:
+                self.user_func(self)
