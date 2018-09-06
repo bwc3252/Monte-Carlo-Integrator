@@ -79,6 +79,7 @@ class estimator:
             self.m_step(n, sample_array)
             count += 1
 
+
     def print_params(self):
         for i in range(self.k):
             mean = self.means[i]
