@@ -251,6 +251,30 @@ samples are generated using numpy's \texttt{multivariate\_normal()}. However,
 the Monte Carlo integrator always specifies bounds, so the \texttt{sample()}
 function from \texttt{multivariate\_truncnorm} is used instead.
 
+\subsection{Preventing Non-Positive-Semidefinite Covariances}
+
+In the training stage (particularly in the M-step or when merging two components
+during an update), a covariance matrix can become non-positive-semidefinite.
+Two methods are used to attempt to correct this. The first is to average a small
+fraction of the previous covariance with the current one, or
+\begin{equation}
+    \Sigma = {{\Sigma_{i} + r \Sigma_{i-1}} \over {1 + r}}
+\end{equation}
+where $\Sigma$ is the final covariance, $\Sigma_i$ is the calculated covariance
+for iteration $i$, $\Sigma_{i-1}$ is the previous covariance, and $r$ is a small
+constant. By default $r = 0.1$. \\
+
+The second, less preferable method is to reinitialize covariances that become
+non-positive-semidefinite. Each iteration of the EM algorithm and each time two
+covariances are merged the function \texttt{is\_pos\_def()} attempts to take the
+Cholesky decomposition of the covariance. This returns an error if the covariance
+is not positive-semidefinite, indicating that the covariance must be
+reinitialized to the identity matrix. \\
+
+Despite both of these methods, the tendency for covariances to become
+non-positive-semidefinite in high dimensions or with large numbers of components
+is a source of instability.
+
 \section{Iterative Algorithm}
 
 The algorithm's main function, \texttt{integrate()}, is:
@@ -277,10 +301,12 @@ populates the \texttt{sample\_array} and \texttt{p\_array} objects. \\
 \texttt{sample\_array} is initialized as an empty $(N \times d)$ array, and
 \texttt{p\_array} is initialized as a $(N \times 1)$ array of ones. For each
 group of dimensions in \texttt{gmm\_dict}, if \texttt{gmm\_dict[dim\_group]} is
-a GMM object, samples are generated using \texttt{gaussian\_mixture\_model.sample()}.
+a GMM object, samples are generated using
+\\ \texttt{gaussian\_mixture\_model.sample()}.
 Each column in this new array of samples is placed in its corresponding column in
 \texttt{sample\_array} (based on the dimensions in the current \texttt{dim\_group}).
-The samples are scored using \texttt{gaussian\_mixture\_model.score()}, and
+The samples are scored using
+\\ \texttt{gaussian\_mixture\_model.score()}, and
 \texttt{p\_array} is multiplied by these scores. \\
 
 If \texttt{gmm\_dict[dim\_group]} is \texttt{None}, that set of dimensions is
