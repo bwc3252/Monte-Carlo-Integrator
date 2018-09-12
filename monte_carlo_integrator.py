@@ -200,15 +200,34 @@ class integrator:
         self.var = ((self.var * self.iterations) + curr_var) / (self.iterations + 1)
 
 
-    def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03):
+    def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03, max_err=10):
+        err_count = 0
         while self.iterations < max_iter:
-            self.sample()
+            if err_count >= max_err:
+                print('Exiting due to errors...')
+                break
+            try:
+                self.sample()
+            except KeyboardInterrupt:
+                print('KeyboardInterrupt, exiting...')
+                exit()
+            except:
+                print('Error sampling, retrying...')
+                err_count += 1
+                continue
             self.value_array = func(self.sample_array)
             self.calculate_results()
-            print(self.integral, '+/-', np.sqrt(self.var), 'with eff_samp', self.eff_samp)
+            #print(self.integral, '+/-', np.sqrt(self.var), 'with eff_samp', self.eff_samp)
             self.iterations += 1
             if self.iterations >= min_iter and self.var < var_thresh:
                 break
-            self.train()
+            try:
+                self.train()
+            except KeyboardInterrupt:
+                print('KeyboardInterrupt, exiting...')
+                exit()
+            except:
+                print('Error training, retrying...')
+                err_count += 1
             if self.user_func is not None:
                 self.user_func(self)

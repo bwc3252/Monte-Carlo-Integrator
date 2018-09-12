@@ -5,6 +5,7 @@ from scipy.misc import logsumexp
 import multivariate_truncnorm as truncnorm
 import itertools
 
+
 '''
 Equation references are from Numerical Recipes for general GMM and https://www.cs.nmsu.edu/~joemsong/publications/Song-SPIE2005-updated.pdf
 for online updating features
@@ -12,20 +13,22 @@ for online updating features
 
 class estimator:
 
-    def __init__(self, k, tol=0.001, max_iters=100):
+    def __init__(self, k, max_iters=100):
         self.k = k
-        self.tol = tol
         self.max_iters = max_iters
         self.means = [None] * k
         self.covariances =[None] * k
+        self.prev_covariances = [None] * k
         self.weights = [None] * k
         self.d = None
         self.p_nk = None
         self.log_prob = None
+        self.cov_avg_ratio = 0.1
 
     def initialize(self, n, sample_array):
         self.means = sample_array[np.random.choice(n, self.k), :]
-        self.covariances = [np.eye(self.d, self.d)] * self.k
+        self.covariances = [np.identity(self.d)] * self.k
+        self.prev_covariances = self.covariances
         self.weights = np.array([1.0 / self.k] * self.k)
 
     def e_step(self, n, sample_array, sample_weights):
@@ -61,10 +64,33 @@ class estimator:
             # (16.1.6)
             diff = sample_array - mean
             cov = np.dot((p_k * diff).T, diff) / w
-            self.covariances[index] = cov
+            # attempt to fix non-positive-semidefinite covariances
+            if self.is_pos_def(cov):
+                self.covariances[index] = (cov + (self.cov_avg_ratio * self.prev_covariances[index])) / (1 + self.cov_avg_ratio)
+            else:
+                self.covariances[index] = np.identity(self.d)
+            self.prev_covariances[index] = self.covariances[index]
+            #self.covariances[index] = cov
             # (16.17)
         weights /= np.sum(p_nk)
         self.weights = weights
+
+
+    def tol(self, n):
+        return (self.d * self.k * n) * 10e-4
+
+
+    def is_pos_def(self, M):
+        '''
+        idea from here:
+        https://stackoverflow.com/questions/43238173/python-convert-matrix-to-positive-semi-definite
+        '''
+        try:
+            _ = np.linalg.cholesky(M)
+            return True
+        except np.linalg.LinAlgError:
+            return False
+
 
     def fit(self, sample_array, sample_weights):
         n, self.d = sample_array.shape
@@ -72,7 +98,7 @@ class estimator:
         prev_log_prob = 0
         self.log_prob = float('inf')
         count = 0
-        while abs(self.log_prob - prev_log_prob) > self.tol and count < self.max_iters: # abs(log_prob - prev_log_prob) > self.tol and
+        while abs(self.log_prob - prev_log_prob) > self.tol(n) and count < self.max_iters:
             #self.print_params()
             prev_log_prob = self.log_prob
             self.e_step(n, sample_array, sample_weights)
@@ -97,9 +123,9 @@ class estimator:
 
 class gmm:
 
-    def __init__(self, k, tol=0.001, max_iters=1000):
+    def __init__(self, k, max_iters=1000):
         self.k = k
-        self.tol = tol
+        #self.tol = tol
         self.max_iters = max_iters
         self.means = [None] * k
         self.covariances =[None] * k
@@ -161,6 +187,10 @@ class gmm:
             cov2 = (self.N * old_weight * old_mean * old_mean.T) + (M * temp_weight * temp_mean * temp_mean.T)
             cov2 /= denominator
             cov = cov1 + cov2 - mean * mean.T
+            # check for positive-semidefinite
+            if not self.is_pos_def(cov):
+                print('Non-positive-semidefinite covariance in component', i + ',' 'reinitializing...')
+                cov = np.identity(self.d)
             # start equation (8)
             weight = denominator / (self.N + M)
             # update everything
@@ -169,7 +199,7 @@ class gmm:
             self.weights[i] = weight
 
     def update(self, sample_array, sample_weights=None, bounds=None, trunc_corr=False):
-        new_model = estimator(self.k, self.tol, self.max_iters)
+        new_model = estimator(self.k, self.max_iters)
         if trunc_corr:
             sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
         new_model.fit(sample_array, sample_weights)
@@ -214,12 +244,29 @@ class gmm:
                 end = n
             else:
                 end = start + num_samples
-            if bounds is None:
-                sample_array[start:end] = np.random.multivariate_normal(mean, cov, end - start)
-            else:
-                sample_array[start:end] = truncnorm.sample(mean, cov, bounds, end - start)
-            start = end
+            try:
+                if bounds is None:
+                    sample_array[start:end] = np.random.multivariate_normal(mean, cov, end - start)
+                else:
+                    sample_array[start:end] = truncnorm.sample(mean, cov, bounds, end - start)
+                start = end
+            except:
+                print('Exiting due to non-positive-semidefinite')
+                exit()
         return sample_array
+
+
+
+    def is_pos_def(self, M):
+        '''
+        idea from here:
+        https://stackoverflow.com/questions/43238173/python-convert-matrix-to-positive-semi-definite
+        '''
+        try:
+            _ = np.linalg.cholesky(M)
+            return True
+        except np.linalg.LinAlgError:
+            return False
 
 
     def print_params(self):

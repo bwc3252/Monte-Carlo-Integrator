@@ -3,6 +3,8 @@ import numpy as np
 from scipy.stats import multivariate_normal
 import sys
 
+import matplotlib.pyplot as plt
+
 
 import mcsampler_new
 
@@ -18,15 +20,11 @@ def integrand(samples):
 
 
 def user_func1(integrator):
-    print()
+    print(integrator.integral, '+/-', np.sqrt(integrator.var), 'with eff_samp', integrator.eff_samp)
 
 
 def user_func2(sampler, integrator):
-    print('This should print at the end')
-    print('Means of gmm:')
-    result = integrator.gmm_dict
-    for index in result:
-        print(result[index].means)
+    pass
 
 
 if __name__ == '__main__':
@@ -43,7 +41,7 @@ if __name__ == '__main__':
             s = ''
         print('Running test with', k, 'components in', d, 'dimensions where dimensions are',
                 s, 'modeled together')
-        llim, rlim = -10, 10
+        llim, rlim = -15, 15
         means = np.random.uniform(llim, rlim, size=(k, d))
         weights = np.random.uniform(size=k)
         weights /= np.sum(weights)
