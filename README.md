@@ -1,29 +1,25 @@
 # Monte-Carlo-Integrator
 
 
-Numpy and scikit-learn need to be installed, and the following files must be in
-the working directory:
+Dependencies:
 
-    monte_carlo_integrator.py
-    weighted_gmm.py
-    mcsamper_new.py
+    python 2.7 or 3.7
+    numpy
+    scipy
+    matplotlib
 
-To test the monte carlo integrator alone, you need
+To test the monte carlo integrator alone, run
 
-    test.py
+    python test.py
 
-To test mcsampler, you need
+For a basic test of mcsampler, run
 
-    test_mcsampler_new.py
+    python test_mcsampler_new.py
 
-To test mcsampler and generate a CDF of the sampled points you need
+For a more thorough test, run
 
-    test_distribution.py
+    python comprehensive_test.py [ndim] [ncomp] [model dimensions together (y/n)]
 
-Each test file should run on its own. Run:
-    
-    python3 <test_file.py>
+For example, to test in two dimensions with two Gaussian components, where dimensions are modeled together, run 
 
-with the appropriate test file.
-
-The integrand, the number of dimensions, the limits of integration, and the grouping of dimensions can all be changed in the test files.
+    python comprehensive_test.py 2 2 y

@@ -1,8 +1,10 @@
+'''
+test file for monte_carlo_integrator.py itself (without mcsampler)
+'''
+
 from __future__ import print_function
 import numpy as np
 import monte_carlo_integrator as monte_carlo
-
-import matplotlib.pyplot as plt
 
 
 
@@ -25,6 +27,7 @@ for x in range(dim):
     # The indices correspond with the columns of the sample array.
 #gmm_dict = {(0, 1):None}
 
+
 def integrand(sample_array):
     # An example integrand where each dimension is the same mixture of two gaussians
     value_array1 = np.square(sample_array - 4) * -0.5
@@ -41,14 +44,14 @@ def integrand(sample_array):
     return value_array
 
 
+def print_func(integrator):
+    i = integrator.integral
+    var = integrator.var
+    eff_samp = integrator.eff_samp
+    print('Integral:', i, 'variance:', var, 'eff_samp:', eff_samp, '\n')
+
+
 # initialize the integrator with the correct parameters
-integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp)
+integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, user_func=print_func)
 # integrate the function
 integrator.integrate(integrand, var_thresh=0.0001)
-# print the gmm parameters
-for dim_group in integrator.gmm_dict:
-    model = integrator.gmm_dict[dim_group]
-    model.print_params()
-#samples = integrator.sample_array
-#plt.hist(samples, 50)
-#plt.show()
