@@ -3,7 +3,7 @@
 
 Dependencies:
 
-    python 2.7 or 3.7
+    python 2.7 or 3.6 +
     numpy
     scipy
     matplotlib
@@ -20,6 +20,6 @@ For a more thorough test, run
 
     python comprehensive_test.py [ndim] [ncomp] [model dimensions together (y/n)]
 
-For example, to test in two dimensions with two Gaussian components, where dimensions are modeled together, run 
+For example, to test in two dimensions with two Gaussian components, where dimensions are modeled together, run
 
     python comprehensive_test.py 2 2 y
