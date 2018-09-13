@@ -285,7 +285,6 @@ def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03):
         self.sample()
         self.value_array = func(self.sample_array)
         self.calculate_results()
-        print(self.integral)
         self.iterations += 1
         if self.iterations >= min_iter and self.var < var_thresh:
             break
@@ -352,7 +351,7 @@ where $M$ is the total number of previous iterations, and the total variance is
     \sigma^2_{total} = {{M \sigma^2_{prev} + \sigma^2} \over {M + 1}}.
 \end{equation}
 
-The "effective" number of samples, $n_{eff}$, is also updated each iteration. Let
+The effective number of samples, $n_{eff}$, is also updated each iteration. Let
 $G(x)$ be the cumulative history of $g(x)$ over all iterations, then
 \begin{equation}
     n_{eff} = {1 \over \max{G(x)}} \sum_{n=0}^{N (M+1)} G(x_n).

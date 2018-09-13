@@ -3,8 +3,6 @@ import numpy as np
 from scipy.stats import multivariate_normal
 import sys
 
-import matplotlib.pyplot as plt
-
 
 import mcsampler_new
 
