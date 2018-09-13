@@ -171,13 +171,11 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, n=None, write_to_file=False, gmm_dict=None,
-                var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
+    def integrate(self, func, args, n_comp=None, n=None, write_to_file=False,
+                gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
                 mcsamp_func=None, integrator_func=None):
         '''
-
         [add documentation]
-
         '''
         if n_comp is None:
             print('No n_comp given, assuming 1 component per dimension')
