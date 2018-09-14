@@ -25,8 +25,9 @@ class estimator:
         self.log_prob = None
         self.cov_avg_ratio = 0.1
 
-    def initialize(self, n, sample_array):
-        self.means = sample_array[np.random.choice(n, self.k), :]
+    def initialize(self, n, sample_array, sample_weights=None):
+        p_weights = (sample_weights / np.sum(sample_weights)).flatten()
+        self.means = sample_array[np.random.choice(n, self.k, p=p_weights), :]
         self.covariances = [np.identity(self.d)] * self.k
         self.prev_covariances = self.covariances
         self.weights = np.array([1.0 / self.k] * self.k)
@@ -94,7 +95,7 @@ class estimator:
 
     def fit(self, sample_array, sample_weights):
         n, self.d = sample_array.shape
-        self.initialize(n, sample_array)
+        self.initialize(n, sample_array, sample_weights)
         prev_log_prob = 0
         self.log_prob = float('inf')
         count = 0
@@ -136,8 +137,8 @@ class gmm:
         self.N = 0
 
     def fit(self, sample_array, sample_weights=None, bounds=None, trunc_corr=False):
-        if trunc_corr:
-            sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
+        #if trunc_corr:
+        #    sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
         self.N, self.d = sample_array.shape
         model = estimator(self.k)
         model.fit(sample_array, sample_weights)

@@ -29,6 +29,7 @@ if __name__ == '__main__':
     # check for valid command line arguments
     if len(sys.argv) != 4:
         print('Usage: python/python3 comprehensive_test.py [ndim] [ncomp] [same model (y/n)]')
+        exit()
     else:
         d = int(sys.argv[1])
         k = int(sys.argv[2])
