@@ -68,6 +68,8 @@ class MCSampler(object):
     def __init__(self):
         # Total number of samples drawn
         self.ntotal = 0
+        # Samples per iteration
+        self.n = 0
         # Parameter names
         self.params = set()
         self.params_ordered = []  # keep them in order. Important to break likelihood function need for names
@@ -171,7 +173,7 @@ class MCSampler(object):
         '''
 
 
-    def integrate(self, func, args, n_comp=None, n=None, write_to_file=False,
+    def integrate(self, func, args, prior=None, n_comp=None, n=None, write_to_file=False,
                 gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
                 mcsamp_func=None, integrator_func=None):
         '''
@@ -196,14 +198,18 @@ class MCSampler(object):
 
         # do the integral
 
-        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, reflect=reflect, user_func=integrator_func)
+        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=prior,
+                        reflect=reflect, user_func=integrator_func)
         integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
+        self.n = integrator.n
+        self.ntotal = integrator.ntotal
         integral = integrator.integral
         var = integrator.var
         eff_samp = integrator.eff_samp
         sample_array = integrator.sample_array
         value_array = integrator.value_array
         p_array = integrator.p_array
+        prior_array = integrator.prior_array
 
         # user-defined function
         if mcsamp_func is not None:
@@ -223,6 +229,9 @@ class MCSampler(object):
             samples = numpy.rot90(sample_array[:,[index]])
             self._rvs[param] = samples
             index += 1
+        self._rvs['joint_prior'] = prior_array
+        self._rvs['joint_s_prior'] = p_array
+        self._rvs['integrand'] = value_array
 
         # write data to file
 

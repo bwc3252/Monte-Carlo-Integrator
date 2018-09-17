@@ -37,8 +37,8 @@ class integrator:
     prior_pdf (1 x n numpy array): User-provided responsibilities for prior samples
     '''
 
-    def __init__(self, d, bounds, gmm_dict, n_comp, n=None, reflect=False, trunc_corr=False,
-                    prior_samples=None, prior_pdf=None, user_func=None):
+    def __init__(self, d, bounds, gmm_dict, n_comp, n=None, prior=None,
+                reflect=False, trunc_corr=False, user_func=None):
         # user-specified parameters
         self.d = d
         self.bounds = bounds
@@ -46,19 +46,20 @@ class integrator:
         self.n_comp = n_comp
         self.reflect = reflect
         self.trunc_corr = trunc_corr
-        self.prior_samples = prior_samples
-        self.prior_pdf = prior_pdf
         self.user_func=user_func
+        self.prior = prior
         # constants
         self.t = 0.02 # percent estimated error threshold
         if n is None:
             self.n = (5000 * self.d) # number of samples per batch
         else:
             self.n = n
+        self.ntotal = 0
         # integrator object parameters
         self.sample_array = None
         self.value_array = None
         self.p_array = None
+        self.prior_array = None
         self.integral = 0
         self.var = 0
         self.eff_samp = 0
@@ -66,11 +67,13 @@ class integrator:
         self.max_value = float('-inf') # for calculating eff_samp
         self.total_value = 0 # for calculating eff_samp
 
+    def calculate_prior(self):
+        if self.prior is None:
+            self.prior_array = np.ones((self.n, 1))
+        else:
+            self.prior_array = self.prior(self.sample_array)
+
     def sample(self):
-        if self.prior_samples is not None:
-            self.sample_array, self.p_array = self.prior_samples, self.prior_pdf
-            self.prior_samples, self.prior_pdf = None, None
-            return
         self.p_array = np.ones((self.n, 1))
         self.sample_array = np.empty((self.n, self.d))
         for dim_group in self.gmm_dict: # iterate over grouped dimensions
@@ -106,7 +109,7 @@ class integrator:
             sample_array, value_array, p_array, new_n_comp = self.reflect_over_bounds()
             new_n, _ = sample_array.shape
         else:
-            sample_array, value_array, p_array = self.sample_array, self.value_array, self.p_array
+            sample_array, value_array, p_array, prior_array = self.sample_array, self.value_array, self.p_array, self.prior_array
             new_n_comp = self.n_comp
             new_n = self.n
         weights = abs(value_array / p_array) # training weights for samples
@@ -180,7 +183,7 @@ class integrator:
 
     def calculate_results(self):
         # make local copies
-        value_array = np.copy(self.value_array)
+        value_array = np.copy(self.value_array) * self.prior_array
         p_array = np.copy(self.p_array)
         value_array /= p_array
         # get weight of current iteration
@@ -216,9 +219,11 @@ class integrator:
                 err_count += 1
                 continue
             self.value_array = func(self.sample_array)
+            self.calculate_prior()
             self.calculate_results()
             #print(self.integral, '+/-', np.sqrt(self.var), 'with eff_samp', self.eff_samp)
             self.iterations += 1
+            self.ntotal += self.n
             if self.iterations >= min_iter and self.var < var_thresh:
                 break
             try:
