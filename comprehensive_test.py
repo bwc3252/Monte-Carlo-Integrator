@@ -25,6 +25,11 @@ def user_func2(sampler, integrator):
     pass
 
 
+def prior(samples):
+    n, _ = samples.shape
+    return np.ones((n, 1))
+
+
 if __name__ == '__main__':
     # check for valid command line arguments
     if len(sys.argv) != 4:
@@ -40,6 +45,7 @@ if __name__ == '__main__':
             s = ''
         print('Running test with', k, 'components in', d, 'dimensions where dimensions are',
                 s, 'modeled together')
+        print('Uniform prior')
         llim, rlim = -15, 15
         means = np.random.uniform(llim, rlim, size=(k, d))
         weights = np.random.uniform(size=k)
@@ -63,7 +69,7 @@ if __name__ == '__main__':
             gmm_dict[tuple(range(d))] = None
         else:
             gmm_dict = None
-        integral, var, eff_samp, _ = sampler.integrate(integrand, args=args, n_comp=k,
+        integral, var, eff_samp, _ = sampler.integrate(integrand, args=args, prior=prior, n_comp=k,
                                     write_to_file=True, gmm_dict=gmm_dict, mcsamp_func=user_func2,
                                     integrator_func=user_func1)
         print('\nFinal result (should be about 1, unless a Gaussian is close to a boundary):')

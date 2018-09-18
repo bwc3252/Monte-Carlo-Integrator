@@ -126,7 +126,7 @@ class MCSampler(object):
         self.params.add(params) # does NOT preserve order in which parameters are provided
         self.params_ordered.append(params)
         if rosDebugMessages:
-            print(" Adding parameter ", params, " with limits ", [left_limit, right_limit])
+            print(" mcsampler: Adding parameter ", params, " with limits ", [left_limit, right_limit])
         if isinstance(params, tuple):
             assert all(map(lambda lim: lim[0] < lim[1], zip(left_limit, right_limit)))
             if left_limit is None:

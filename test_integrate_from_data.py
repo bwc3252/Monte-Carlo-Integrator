@@ -2,7 +2,7 @@ from __future__ import print_function
 from sklearn.externals import joblib
 import numpy as np
 import mcsampler_new
-import mcsampler
+#import mcsampler
 
 
 gp = joblib.load('gp_fit.pkl')
@@ -25,7 +25,7 @@ def integrand(sample_array):
 
 
 def main():
-
+    '''
     # get results for existing integrator
 
     print('OLD INTEGRATOR')
@@ -36,7 +36,7 @@ def main():
     print(result, '\n')
     print('_hist')
     print(existing._hist)
-
+    '''
     # get results for new integrator
 
     print('NEW INTEGRATOR')

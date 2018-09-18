@@ -109,10 +109,10 @@ class integrator:
             sample_array, value_array, p_array, new_n_comp = self.reflect_over_bounds()
             new_n, _ = sample_array.shape
         else:
-            sample_array, value_array, p_array, prior_array = self.sample_array, self.value_array, self.p_array, self.prior_array
+            sample_array, value_array, p_array = self.sample_array, self.value_array, self.p_array
             new_n_comp = self.n_comp
             new_n = self.n
-        weights = abs(value_array / p_array) # training weights for samples
+        weights = abs((value_array * self.prior_array) / p_array) # training weights for samples
         for dim_group in self.gmm_dict: # iterate over grouped dimensions
             # create a matrix of the left and right limits for this set of dimensions
             new_bounds = np.empty((len(dim_group), 2))
