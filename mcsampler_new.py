@@ -226,8 +226,7 @@ class MCSampler(object):
 
         index = 0
         for param in args:
-            samples = numpy.rot90(sample_array[:,[index]])
-            self._rvs[param] = samples
+            self._rvs[param] = sample_array[:,[index]]
             index += 1
         self._rvs['joint_prior'] = prior_array
         self._rvs['joint_s_prior'] = p_array

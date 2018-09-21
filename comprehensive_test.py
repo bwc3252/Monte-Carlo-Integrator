@@ -73,4 +73,4 @@ if __name__ == '__main__':
                                     write_to_file=True, gmm_dict=gmm_dict, mcsamp_func=user_func2,
                                     integrator_func=user_func1)
         print('\nFinal result (should be about 1, unless a Gaussian is close to a boundary):')
-print(integral, 'with variance', var, 'and eff_samp', eff_samp)
+        print(integral, 'with variance', var, 'and eff_samp', eff_samp)
