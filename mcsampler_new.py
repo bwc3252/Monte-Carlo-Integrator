@@ -180,17 +180,17 @@ class MCSampler(object):
         if self.sample_format == 'rows':
             # integrand expects a list of 1D rows
             temp = []
-            for index in range(len(self.args)):
+            for index in range(len(self.curr_args)):
                 temp.append(samples[:,index])
-            temp_ret = self.func(temp)
-            return np.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
+            temp_ret = self.func(*temp)
+            return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
         elif self.sample_format == 'columns':
             # integrand expects a list of 1D columns
             temp = []
             for index in range(len(self.args)):
                 temp.append(samples[:,[index]])
             temp_ret = self.func(temp)
-            return np.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
+            return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
 
 
     def integrate(self, func, args, direct_eval=True, sample_format = None, prior=None, n_comp=None, n=None, write_to_file=False,
@@ -224,7 +224,7 @@ class MCSampler(object):
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=prior,
                         reflect=reflect, user_func=integrator_func)
         if not direct_eval:
-            func = self.evaluate()
+            func = self.evaluate
         integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
         self.n = integrator.n
         self.ntotal = integrator.ntotal
