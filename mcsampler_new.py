@@ -111,6 +111,10 @@ class MCSampler(object):
         self.rlim = {}
         self.adaptive = []
 
+        self.func = None
+        self.sample_format = None
+        self.curr_args = None
+
     def add_parameter(self, params, pdf=None,  cdf_inv=None, left_limit=None, right_limit=None,
                         prior_pdf=None, adaptive_sampling=False):
         """
@@ -172,13 +176,32 @@ class MCSampler(object):
             self.adaptive.append(params)
         '''
 
+    def evaluate(self, samples):
+        if self.sample_format == 'rows':
+            # integrand expects a list of 1D rows
+            temp = []
+            for index in range(len(self.args)):
+                temp.append(samples[:,index])
+            temp_ret = self.func(temp)
+            return np.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
+        elif self.sample_format == 'columns':
+            # integrand expects a list of 1D columns
+            temp = []
+            for index in range(len(self.args)):
+                temp.append(samples[:,[index]])
+            temp_ret = self.func(temp)
+            return np.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
 
-    def integrate(self, func, args, prior=None, n_comp=None, n=None, write_to_file=False,
+
+    def integrate(self, func, args, direct_eval=True, sample_format = None, prior=None, n_comp=None, n=None, write_to_file=False,
                 gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
                 mcsamp_func=None, integrator_func=None):
         '''
         [add documentation]
         '''
+        self.func = func
+        self.sample_format = sample_format
+        self.curr_args = args
         if n_comp is None:
             print('No n_comp given, assuming 1 component per dimension')
             n_comp = 1
@@ -200,6 +223,8 @@ class MCSampler(object):
 
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=prior,
                         reflect=reflect, user_func=integrator_func)
+        if not direct_eval:
+            func = self.evaluate()
         integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
         self.n = integrator.n
         self.ntotal = integrator.ntotal
