@@ -5,6 +5,7 @@ from scipy.misc import logsumexp
 import multivariate_truncnorm as truncnorm
 import itertools
 
+internal_dtype = np.float128
 
 '''
 Equation references are from Numerical Recipes for general GMM and https://www.cs.nmsu.edu/~joemsong/publications/Song-SPIE2005-updated.pdf
@@ -27,7 +28,7 @@ class estimator:
 
     def initialize(self, n, sample_array, sample_weights=None):
         p_weights = (sample_weights / np.sum(sample_weights)).flatten()
-        self.means = sample_array[np.random.choice(n, self.k, p=p_weights), :]
+        self.means = sample_array[np.random.choice(n, self.k, p=p_weights.astype(sample_array.dtype)), :]
         self.covariances = [np.identity(self.d)] * self.k
         self.prev_covariances = self.covariances
         self.weights = np.array([1.0 / self.k] * self.k)
