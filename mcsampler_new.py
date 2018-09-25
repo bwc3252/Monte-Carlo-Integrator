@@ -95,6 +95,10 @@ class MCSampler(object):
         # ASSUMES the user insures they are normalized
         self.prior_pdf = {}
 
+        self.func = None
+        self.sample_format = None
+        self.curr_args = None
+
     def clear(self):
         """
         Clear out the parameters and their settings, as well as clear the sample cache.
@@ -110,10 +114,6 @@ class MCSampler(object):
         self.llim = {}
         self.rlim = {}
         self.adaptive = []
-
-        self.func = None
-        self.sample_format = None
-        self.curr_args = None
 
     def add_parameter(self, params, pdf=None,  cdf_inv=None, left_limit=None, right_limit=None,
                         prior_pdf=None, adaptive_sampling=False):
