@@ -52,7 +52,7 @@ class test:
                 for iteration in range(self.tests_per_init):
                     self.initialize()
                     t1 = time.time()
-                    integral, _, _, _ = self.sampler.integrate(self.func, args=self.args, n_comp=self.k)
+                    integral, _, _, _ = self.sampler.integrate(self.func, args=self.args, n_comp=self.k, gmm_dict=self.gmm_dict)
                     t = time.time() - t1
                     self.results[self.dim - 1][self.k - 1] += t
         self.results /= self.tests_per_init
