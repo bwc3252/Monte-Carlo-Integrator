@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import gaussian_mixture_model as GMM
+import traceback
 
 
 class integrator:
@@ -214,7 +215,9 @@ class integrator:
             except KeyboardInterrupt:
                 print('KeyboardInterrupt, exiting...')
                 exit()
-            except:
+            except Exception as e:
+#                print(e)
+                print(traceback.format_exc())
                 print('Error sampling, retrying...')
                 err_count += 1
                 continue
@@ -231,7 +234,9 @@ class integrator:
             except KeyboardInterrupt:
                 print('KeyboardInterrupt, exiting...')
                 exit()
-            except:
+            except Exception as e:
+#                print(e)
+                print(traceback.format_exc())
                 print('Error training, retrying...')
                 err_count += 1
             if self.user_func is not None:
