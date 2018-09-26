@@ -99,6 +99,7 @@ class MCSampler(object):
         self.sample_format = None
         self.curr_args = None
 
+
     def clear(self):
         """
         Clear out the parameters and their settings, as well as clear the sample cache.
@@ -195,7 +196,7 @@ class MCSampler(object):
 
     def integrate(self, func, args, direct_eval=True, sample_format = None, prior=None, n_comp=None, n=None, write_to_file=False,
                 gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
-                mcsamp_func=None, integrator_func=None):
+                mcsamp_func=None, integrator_func=None, proc_count=None):
         '''
         [add documentation]
         '''
@@ -222,7 +223,7 @@ class MCSampler(object):
         # do the integral
 
         integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=prior,
-                        reflect=reflect, user_func=integrator_func)
+                        reflect=reflect, user_func=integrator_func, proc_count=proc_count)
         if not direct_eval:
             func = self.evaluate
         integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)

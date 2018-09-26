@@ -2,7 +2,8 @@ from __future__ import print_function
 import numpy as np
 import gaussian_mixture_model as GMM
 import traceback
-
+import time
+from multiprocessing import Pool
 
 class integrator:
     '''
@@ -39,7 +40,7 @@ class integrator:
     '''
 
     def __init__(self, d, bounds, gmm_dict, n_comp, n=None, prior=None,
-                reflect=False, trunc_corr=False, user_func=None):
+                reflect=False, trunc_corr=False, user_func=None, proc_count=None):
         # user-specified parameters
         self.d = d
         self.bounds = bounds
@@ -49,6 +50,7 @@ class integrator:
         self.trunc_corr = trunc_corr
         self.user_func=user_func
         self.prior = prior
+        self.proc_count = proc_count
         # constants
         self.t = 0.02 # percent estimated error threshold
         if n is None:
@@ -206,6 +208,7 @@ class integrator:
 
     def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03, max_err=10):
         err_count = 0
+        cumulative_eval_time = 0
         while self.iterations < max_iter:
             if err_count >= max_err:
                 print('Exiting due to errors...')
@@ -221,7 +224,14 @@ class integrator:
                 print('Error sampling, retrying...')
                 err_count += 1
                 continue
-            self.value_array = func(self.sample_array)
+            t1 = time.time()
+            if self.proc_count is None:
+                self.value_array = func(self.sample_array)
+            else:
+                split_samples = np.array_split(self.sample_array, self.proc_count)
+                p = Pool(self.proc_count)
+                self.value_array = np.concatenate(p.map(func, split_samples), axis=0)
+            cumulative_eval_time += time.time() - t1
             self.calculate_prior()
             self.calculate_results()
             #print(self.integral, '+/-', np.sqrt(self.var), 'with eff_samp', self.eff_samp)
@@ -241,3 +251,4 @@ class integrator:
                 err_count += 1
             if self.user_func is not None:
                 self.user_func(self)
+        print(cumulative_eval_time)
