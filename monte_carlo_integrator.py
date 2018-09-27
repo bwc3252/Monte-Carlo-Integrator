@@ -3,7 +3,7 @@ import numpy as np
 import gaussian_mixture_model as GMM
 import traceback
 import time
-from multiprocessing import Pool
+from multiprocess import Pool
 
 class integrator:
     '''
@@ -231,6 +231,7 @@ class integrator:
                 split_samples = np.array_split(self.sample_array, self.proc_count)
                 p = Pool(self.proc_count)
                 self.value_array = np.concatenate(p.map(func, split_samples), axis=0)
+                p.close()
             cumulative_eval_time += time.time() - t1
             self.calculate_prior()
             self.calculate_results()
