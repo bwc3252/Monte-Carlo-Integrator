@@ -182,7 +182,7 @@ class MCSampler(object):
 
 
     def integrate(self, func, args, direct_eval=True, n_comp=None, n=None, nmax=None, write_to_file=False,
-                gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, neff=None, reflect=False,
+                gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, neff=float('inf'), reflect=False,
                 mcsamp_func=None, integrator_func=None, proc_count=None):
         '''
         Integrate the specified function over the specified parameters.

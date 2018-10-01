@@ -230,8 +230,6 @@ class gmm:
         updates the current model with new data WITHOUT doing a full re-training
         '''
         new_model = estimator(self.k, self.max_iters)
-        if trunc_corr:
-            sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
         new_model.fit(sample_array, sample_weights)
         M, _ = sample_array.shape
         self.merge(new_model, M)
