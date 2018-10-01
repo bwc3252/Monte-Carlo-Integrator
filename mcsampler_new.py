@@ -178,30 +178,35 @@ class MCSampler(object):
         '''
 
     def evaluate(self, samples):
-        if self.sample_format == 'rows':
-            # integrand expects a list of 1D rows
-            temp = []
-            for index in range(len(self.curr_args)):
-                temp.append(samples[:,index])
-            temp_ret = self.func(*temp)
-            return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
-        elif self.sample_format == 'columns':
-            # integrand expects a list of 1D columns
-            temp = []
-            for index in range(len(self.args)):
-                temp.append(samples[:,[index]])
-            temp_ret = self.func(temp)
-            return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
+
+        # integrand expects a list of 1D rows
+        temp = []
+        for index in range(len(self.curr_args)):
+            temp.append(samples[:,index])
+        temp_ret = self.func(*temp)
+        return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
 
 
-    def integrate(self, func, args, direct_eval=True, sample_format = None, prior=None, n_comp=None, n=None, write_to_file=False,
-                gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, reflect=False,
+    def calc_pdf(self, samples):
+        n, _ = samples.shape
+        temp_ret = numpy.ones((n, 1))
+        # pdf functions expect 1D rows
+        for index in range(len(self.curr_args)):
+            if self.curr_args[index] in self.pdf:
+                pdf_func = self.pdf[self.curr_args[index]]
+                temp_samples = samples[:,index]
+                # monte carlo integrator expects a column
+                temp_ret *= numpy.rot90([pdf_func(temp_samples)], -1)
+        return temp_ret
+
+
+    def integrate(self, func, args, direct_eval=True, n_comp=None, n=None, nmax=None, write_to_file=False,
+                gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, neff=None, reflect=False,
                 mcsamp_func=None, integrator_func=None, proc_count=None):
         '''
         [add documentation]
         '''
         self.func = func
-        self.sample_format = sample_format
         self.curr_args = args
         if n_comp is None:
             print('No n_comp given, assuming 1 component per dimension')
@@ -222,11 +227,11 @@ class MCSampler(object):
 
         # do the integral
 
-        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=prior,
+        integrator = monte_carlo.integrator(dim, bounds, gmm_dict, n_comp, n=n, prior=self.calc_pdf,
                         reflect=reflect, user_func=integrator_func, proc_count=proc_count)
         if not direct_eval:
             func = self.evaluate
-        integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh)
+        integrator.integrate(func, min_iter=10, max_iter=max_iter, var_thresh=var_thresh, neff=neff, nmax=nmax)
         self.n = integrator.n
         self.ntotal = integrator.ntotal
         integral = integrator.integral

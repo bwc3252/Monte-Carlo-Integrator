@@ -69,6 +69,7 @@ class integrator:
         self.iterations = 0 # for weighted averages and count
         self.max_value = float('-inf') # for calculating eff_samp
         self.total_value = 0 # for calculating eff_samp
+        self.n_max = float('inf')
 
     def calculate_prior(self):
         if self.prior is None:
@@ -206,10 +207,12 @@ class integrator:
         self.var = ((self.var * self.iterations) + curr_var) / (self.iterations + 1)
 
 
-    def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03, max_err=10):
+    def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.0, max_err=10, neff=float('inf'), nmax=None):
         err_count = 0
         cumulative_eval_time = 0
-        while self.iterations < max_iter:
+        if nmax is None:
+            nmax = max_iter * self.n
+        while self.iterations < max_iter and self.ntotal < nmax and self.eff_samp < neff:
             if err_count >= max_err:
                 print('Exiting due to errors...')
                 break
@@ -252,4 +255,5 @@ class integrator:
                 err_count += 1
             if self.user_func is not None:
                 self.user_func(self)
-        print(cumulative_eval_time)
+        print('cumulative eval time: ', cumulative_eval_time)
+        print('integrator iterations: ', self.iterations)

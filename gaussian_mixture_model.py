@@ -5,8 +5,6 @@ from scipy.misc import logsumexp
 import multivariate_truncnorm as truncnorm
 import itertools
 
-internal_dtype = np.float128
-
 '''
 Equation references are from Numerical Recipes for general GMM and https://www.cs.nmsu.edu/~joemsong/publications/Song-SPIE2005-updated.pdf
 for online updating features
@@ -191,7 +189,7 @@ class gmm:
             cov = cov1 + cov2 - mean * mean.T
             # check for positive-semidefinite
             if not self.is_pos_def(cov):
-                print('Non-positive-semidefinite covariance in component', i + ',' 'reinitializing...')
+                print('Non-positive-semidefinite covariance in component', i, ', reinitializing...')
                 cov = np.identity(self.d)
             # start equation (8)
             weight = denominator / (self.N + M)
