@@ -251,7 +251,7 @@ class MCSampler(object):
                         reflect=reflect, user_func=integrator_func, proc_count=proc_count)
         if not direct_eval:
             func = self.evaluate
-        integrator.integrate(func, min_iter=10, max_iter=max_iter, var_thresh=var_thresh, neff=neff, nmax=nmax)
+        integrator.integrate(func, min_iter=min_iter, max_iter=max_iter, var_thresh=var_thresh, neff=neff, nmax=nmax)
 
         # get results
 
