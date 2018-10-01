@@ -11,10 +11,13 @@ for online updating features
 '''
 
 class estimator:
+    '''
+    base estimator class for GMM, contains only basic EM algorithm
+    '''
 
     def __init__(self, k, max_iters=100):
-        self.k = k
-        self.max_iters = max_iters
+        self.k = k # number of gaussian components
+        self.max_iters = max_iters # maximum number of iterations to convergence
         self.means = [None] * k
         self.covariances =[None] * k
         self.prev_covariances = [None] * k
@@ -49,7 +52,7 @@ class estimator:
         p_xn = logsumexp(p_nk, axis=1, keepdims=True) # (16.1.3)
         self.p_nk = p_nk - p_xn # (16.1.5)
         self.p_nk += log_sample_weights
-        self.log_prob = np.sum(p_xn + log_sample_weights)# np.sum(np.log(p_xn * sample_weights)) # (16.1.2)
+        self.log_prob = np.sum(p_xn + log_sample_weights) # (16.1.2)
 
     def m_step(self, n, sample_array):
         p_nk = np.exp(self.p_nk)
@@ -77,6 +80,10 @@ class estimator:
 
 
     def tol(self, n):
+        '''
+        scale tolerance with number of dimensions, number of components, and
+        number of samples
+        '''
         return (self.d * self.k * n) * 10e-4
 
 
@@ -93,13 +100,15 @@ class estimator:
 
 
     def fit(self, sample_array, sample_weights):
+        '''
+        basic fit() function to fit model to data
+        '''
         n, self.d = sample_array.shape
         self.initialize(n, sample_array, sample_weights)
         prev_log_prob = 0
         self.log_prob = float('inf')
         count = 0
         while abs(self.log_prob - prev_log_prob) > self.tol(n) and count < self.max_iters:
-            #self.print_params()
             prev_log_prob = self.log_prob
             self.e_step(n, sample_array, sample_weights)
             self.m_step(n, sample_array)
@@ -107,6 +116,9 @@ class estimator:
 
 
     def print_params(self):
+        '''
+        a nice way to print the parameters of the model
+        '''
         for i in range(self.k):
             mean = self.means[i]
             cov = self.covariances[i]
@@ -122,6 +134,9 @@ class estimator:
 
 
 class gmm:
+    '''
+    more sophisticated implementation built on top of estimator
+    '''
 
     def __init__(self, k, max_iters=1000):
         self.k = k
@@ -135,10 +150,12 @@ class gmm:
         self.log_prob = None
         self.N = 0
 
-    def fit(self, sample_array, sample_weights=None, bounds=None, trunc_corr=False):
-        #if trunc_corr:
-        #    sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
+    def fit(self, sample_array, sample_weights=None):
+        '''
+        fit a new model to data with optional weights
+        '''
         self.N, self.d = sample_array.shape
+        # just use base estimator
         model = estimator(self.k)
         model.fit(sample_array, sample_weights)
         self.means = model.means
@@ -148,15 +165,18 @@ class gmm:
         self.log_prob = model.log_prob
 
     def match_components(self, new_model):
+        '''
+        match components in new model to those in current model by minimizing the
+        net Mahalanobis between all pairs of components
+        '''
         orders = list(itertools.permutations(range(self.k), self.k))
         distances = np.empty(len(orders))
         index = 0
         for order in orders:
             dist = 0
             i = 0
-            for j in order: # get sum of Euclidean distances between means
-                #dist += np.sqrt(np.sum(np.square(self.means[i] - new_model.means[j])))
-                # try Mahalanobis distance instead
+            for j in order:
+                # get Mahalanobis distance between current pair of components
                 diff = new_model.means[j] - self.means[i]
                 cov_inv = np.linalg.inv(self.covariances[i])
                 temp_cov_inv = np.linalg.inv(new_model.covariances[j])
@@ -168,9 +188,16 @@ class gmm:
         return orders[np.argmin(distances)] # returns order which gives minimum net Euclidean distance
 
     def merge(self, new_model, M):
+        '''
+        merge corresponding components of new model and old model
+
+        refer to paper linked at the top of this file
+
+        M is the number of samples that the new model was fit using
+        '''
         order = self.match_components(new_model)
         for i in range(self.k):
-            j = order[i]
+            j = order[i] # get corresponding component
             old_mean = self.means[i]
             temp_mean = new_model.means[j]
             old_cov = self.covariances[i]
@@ -198,7 +225,10 @@ class gmm:
             self.covariances[i] = cov
             self.weights[i] = weight
 
-    def update(self, sample_array, sample_weights=None, bounds=None, trunc_corr=False):
+    def update(self, sample_array, sample_weights=None):
+        '''
+        updates the current model with new data WITHOUT doing a full re-training
+        '''
         new_model = estimator(self.k, self.max_iters)
         if trunc_corr:
             sample_array, sample_weights = self.trunc_correction(sample_array, bounds, sample_weights)
@@ -208,6 +238,11 @@ class gmm:
         self.N += M
 
     def score(self, sample_array, bounds=None):
+        '''
+        scores samples under the current model. If bounds are given, they are used
+        to renormalize the scores. This should generally be pretty fast, but it does
+        require sampling another n points from a full, not-truncated distribution
+        '''
         n, _ = sample_array.shape
         scores = np.zeros((len(sample_array), 1))
         for i in range(self.k):
@@ -219,7 +254,7 @@ class gmm:
             # terrible, but it seems to occasionally keep the whole thing from blowing up
             # so it stays for now
         if bounds is not None:
-            # we need to renormalize the pdf
+            # we need to renormalize the PDF
             # to do this we sample from a full distribution (i.e. without truncation) and use the
             # fraction of samples that fall inside the bounds to renormalize
             full_sample_array = self.sample(n)
@@ -233,6 +268,10 @@ class gmm:
         return scores
 
     def sample(self, n, bounds=None):
+        '''
+        samples from the current model, either over a full domain or within the
+        specified rectangular bounds
+        '''
         sample_array = np.empty((n, self.d))
         start = 0
         for component in range(self.k):
@@ -270,6 +309,9 @@ class gmm:
 
 
     def print_params(self):
+        '''
+        a nice way to print the parameters of the model
+        '''
         for i in range(self.k):
             mean = self.means[i]
             cov = self.covariances[i]

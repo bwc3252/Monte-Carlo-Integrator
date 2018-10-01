@@ -35,9 +35,6 @@ class integrator:
     same shape as the bounds parameter, where each entry is a bool indicating whether
     or not to reflect over that boundary.
 
-    trunc_corr (bool): An alternative option to correct for boundaries. Currently
-    does not work.
-
     prior_samples (d x n numpy array): User-provided samples for intial evaluation
     and training. If None, a uniform prior is used. Note that if non-uniform prior
     is used, the prior_pdf must also be provided.
@@ -46,14 +43,13 @@ class integrator:
     '''
 
     def __init__(self, d, bounds, gmm_dict, n_comp, n=None, prior=None,
-                reflect=False, trunc_corr=False, user_func=None, proc_count=None):
+                reflect=False, user_func=None, proc_count=None):
         # user-specified parameters
         self.d = d
         self.bounds = bounds
         self.gmm_dict = gmm_dict
         self.n_comp = n_comp
         self.reflect = reflect
-        self.trunc_corr = trunc_corr
         self.user_func=user_func
         self.prior = prior
         self.proc_count = proc_count
@@ -140,9 +136,9 @@ class integrator:
             if model is None:
                 # model doesn't exist yet
                 model = GMM.gmm(new_n_comp)
-                model.fit(temp_samples, sample_weights=weights, bounds=new_bounds)
+                model.fit(temp_samples, sample_weights=weights)
             else:
-                model.update(temp_samples, sample_weights=weights, bounds=new_bounds)
+                model.update(temp_samples, sample_weights=weights)
             self.gmm_dict[dim_group] = model
 
 

@@ -6,10 +6,15 @@ from time import time
 
 '''
 Code adapted from http://www.aishack.in/tutorials/generating-multivariate-gaussian-random/
+
+Generates multivariate Gaussian samples inside a specified rectangular region
 '''
 
 
 def get_corner_coords(bounds):
+    '''
+    gets coordinates of corner points given bounds for each dimension
+    '''
     d = len(bounds)
     points = np.empty((2**d, d))
     bounds = np.rot90(bounds)
@@ -23,6 +28,10 @@ def get_corner_coords(bounds):
 
 
 def get_new_bounds(bounds, q):
+    '''
+    finds smallest rectangular region that, when transformed, will contain the
+    desired rectangular sampling region
+    '''
     r = q.I # inverse of transformation
     d = len(bounds)
     old_points = get_corner_coords(bounds)
@@ -40,6 +49,9 @@ def get_new_bounds(bounds, q):
 
 
 def get_multipliers(cov):
+    '''
+    gets the linear transformation to shift samples
+    '''
     [lam, sigma] = np.linalg.eig(cov)
     lam = np.matrix(np.diag(np.sqrt(lam)))
     q = np.matrix(sigma) * lam
@@ -47,6 +59,9 @@ def get_multipliers(cov):
 
 
 def sample(mean, cov, bounds, n):
+    '''
+    generates n samples with correct mean and covariance inside of the specified bounds
+    '''
     mean = np.matrix(mean)
     d = len(bounds)
     q = get_multipliers(cov)

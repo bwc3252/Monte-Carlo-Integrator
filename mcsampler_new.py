@@ -4,18 +4,16 @@ import math
 import bisect
 from collections import defaultdict
 
-import numpy
+import numpy as np
 
 import itertools
 import functools
 
 #from statutils import cumvar
 
-from multiprocessing import Pool
-
 import monte_carlo_integrator as monte_carlo
 
-__author__ = "Chris Pankow <pankow@gravity.phys.uwm.edu>"
+__author__ = "Chris Pankow <pankow@gravity.phys.uwm.edu>, Ben Champion <bwc3252@rit.edu>"
 
 rosDebugMessages = True
 
@@ -153,50 +151,33 @@ class MCSampler(object):
             else:
                 self.rlim[params] = right_limit
 
-        #######################################################################
-        #                                                                     #
-        #    None of the stuff from this point on is necessary anymore ???    #
-        #    I'm just getting rid of it all for now                           #
-        #                                                                     #
-        #######################################################################
-
-        '''
-        self.pdf[params] = pdf
-        # FIXME: This only works automagically for the 1d case currently
-        self.cdf_inv[params] = cdf_inv or self.cdf_inverse(params)
-        if not isinstance(params, tuple):
-            self.cdf[params] =  self.cdf_function(params)
-            if prior_pdf is None:
-                self.prior_pdf[params] = lambda x:1
-            else:
-                self.prior_pdf[params] = prior_pdf
-        self.prior_pdf[params] = prior_pdf
-
-        if adaptive_sampling:
-            print "   Adapting ", params
-            self.adaptive.append(params)
-        '''
-
     def evaluate(self, samples):
-
+        '''
+        Interfaces between monte_carlo_integrator sample format (1 (n x d) array)
+        and likelihood function sample format (d 1D arrays in a list)
+        '''
         # integrand expects a list of 1D rows
         temp = []
         for index in range(len(self.curr_args)):
             temp.append(samples[:,index])
         temp_ret = self.func(*temp)
-        return numpy.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
+        return np.rot90([temp_ret], -1) # monte_carlo_integrator expects a column
 
 
     def calc_pdf(self, samples):
+        '''
+        Similar to evaluate(), interfaces between sample formats. Must also handle
+        possibility of no prior for one of more dimensions
+        '''
         n, _ = samples.shape
-        temp_ret = numpy.ones((n, 1))
+        temp_ret = np.ones((n, 1))
         # pdf functions expect 1D rows
         for index in range(len(self.curr_args)):
             if self.curr_args[index] in self.pdf:
                 pdf_func = self.pdf[self.curr_args[index]]
                 temp_samples = samples[:,index]
                 # monte carlo integrator expects a column
-                temp_ret *= numpy.rot90([pdf_func(temp_samples)], -1)
+                temp_ret *= np.rot90([pdf_func(temp_samples)], -1)
         return temp_ret
 
 
@@ -204,8 +185,47 @@ class MCSampler(object):
                 gmm_dict=None, var_thresh=0.05, min_iter=10, max_iter=20, neff=None, reflect=False,
                 mcsamp_func=None, integrator_func=None, proc_count=None):
         '''
-        [add documentation]
+        Integrate the specified function over the specified parameters.
+
+        func: function to integrate
+
+        args: list of parameters to integrate over
+
+        direct_eval (bool): whether func can be evaluated directly with monte_carlo_integrator
+        format or not
+
+        n_comp: number of gaussian components for model
+
+        n: number of samples per iteration
+
+        nmax: maximum number of samples for all iterations
+
+        write_to_file (bool): write data to file
+
+        gmm_dict: dictionary of dimensions and mixture models (see monte_carlo_integrator
+        documentation for more)
+
+        var_thresh: result variance threshold for termination
+
+        min_iter: minimum number of integrator iterations
+
+        max_iter: maximum number of integrator iterations
+
+        neff: eff_samp cutoff for termination
+
+        reflect (bool): whether or not to reflect samples over boundaries (you should
+        basically never use this, it's really slow)
+
+        mcsamp_func: function to be executed before mcsampler_new terminates (for example,
+        to print results or debugging info)
+
+        integrator_func: function to be executed each iteration of the integrator (for
+        example, to print intermediate results)
+
+        proc_count: size of multiprocessing pool. set to None to not use multiprocessing
         '''
+
+        # set up a lot of preliminary stuff
         self.func = func
         self.curr_args = args
         if n_comp is None:
@@ -214,11 +234,11 @@ class MCSampler(object):
         dim = len(args)
         bounds = []
         for param in args:
-            #print('Integrating param', param, 'with llim', self.llim[param], 'and rlim', self.rlim[param])
             bounds.append([self.llim[param], self.rlim[param]])
-        bounds = numpy.array(bounds)
+        bounds = np.array(bounds)
 
-        # for now, we hardcode the assumption that there are no correlated dimensions
+        # for now, we hardcode the assumption that there are no correlated dimensions,
+        # unless otherwise specified
 
         if gmm_dict is None:
             gmm_dict = {}
@@ -232,6 +252,9 @@ class MCSampler(object):
         if not direct_eval:
             func = self.evaluate
         integrator.integrate(func, min_iter=10, max_iter=max_iter, var_thresh=var_thresh, neff=neff, nmax=nmax)
+
+        # get results
+
         self.n = integrator.n
         self.ntotal = integrator.ntotal
         integral = integrator.integral
@@ -245,14 +268,7 @@ class MCSampler(object):
         # user-defined function
         if mcsamp_func is not None:
             mcsamp_func(self, integrator)
-        '''
-        integral = results['integral']
-        error = results['error']
-        eff_samp = results['eff_samp']
-        sample_array = results['sample_array'][-1]
-        value_array = results['value_array'][-1]
-        p_array = results['p_array'][-1]
-        '''
+
         # populate dictionary
 
         index = 0
@@ -266,31 +282,24 @@ class MCSampler(object):
         # write data to file
 
         if write_to_file:
-            dat_out = numpy.c_[sample_array, value_array, p_array]
-            numpy.savetxt('mcsampler_data.txt', dat_out,
+            dat_out = np.c_[sample_array, value_array, p_array]
+            np.savetxt('mcsampler_data.txt', dat_out,
                         header=" ".join(['sample_array', 'value_array', 'p_array']))
 
         return integral, var, eff_samp, {}
-
-
-##############################################################
-#                                                            #
-#    I have no idea what anything from this point on does    #
-#                                                            #
-##############################################################
 
 
 def inv_uniform_cdf(a, b, x):
     return (b-a)*x+a
 
 def gauss_samp(mu, std, x):
-    return 1.0/numpy.sqrt(2*numpy.pi*std**2)*numpy.exp(-(x-mu)**2/2/std**2)
+    return 1.0/np.sqrt(2*np.pi*std**2)*np.exp(-(x-mu)**2/2/std**2)
 
 def gauss_samp_withfloor(mu, std, myfloor, x):
-    return 1.0/numpy.sqrt(2*numpy.pi*std**2)*numpy.exp(-(x-mu)**2/2/std**2) + myfloor
+    return 1.0/np.sqrt(2*np.pi*std**2)*np.exp(-(x-mu)**2/2/std**2) + myfloor
 
-#gauss_samp_withfloor_vector = numpy.vectorize(gauss_samp_withfloor,excluded=['mu','std','myfloor'],otypes=[numpy.float])
-gauss_samp_withfloor_vector = numpy.vectorize(gauss_samp_withfloor,otypes=[numpy.float])
+#gauss_samp_withfloor_vector = np.vectorize(gauss_samp_withfloor,excluded=['mu','std','myfloor'],otypes=[np.float])
+gauss_samp_withfloor_vector = np.vectorize(gauss_samp_withfloor,otypes=[np.float])
 
 
 # Mass ratio. PDF propto 1/(1+q)^2.  Defined so mass ratio is < 1
@@ -301,7 +310,7 @@ gauss_samp_withfloor_vector = numpy.vectorize(gauss_samp_withfloor,otypes=[numpy
 # % // CForm
 def q_samp_vector(qmin,qmax,x):
     scale = 1./(1+qmin) - 1./(1+qmax)
-    return 1/numpy.power((1+x),2)/scale
+    return 1/np.power((1+x),2)/scale
 def q_cdf_inv_vector(qmin,qmax,x):
     return np.array((qmin + qmax*qmin + qmax*x - qmin*x)/(1 + qmax - qmax*x + qmin*x),dtype=np.float128)
 
@@ -312,34 +321,34 @@ def M_samp_vector(Mmin,Mmax,x):
 
 
 def cos_samp(x):
-        return numpy.sin(x)/2   # x from 0, pi
+        return np.sin(x)/2   # x from 0, pi
 
 def dec_samp(x):
-        return numpy.sin(x+numpy.pi/2)/2   # x from 0, pi
+        return np.sin(x+np.pi/2)/2   # x from 0, pi
 
-cos_samp_vector = numpy.vectorize(cos_samp,otypes=[numpy.float])
-dec_samp_vector = numpy.vectorize(dec_samp,otypes=[numpy.float])
+cos_samp_vector = np.vectorize(cos_samp,otypes=[np.float])
+dec_samp_vector = np.vectorize(dec_samp,otypes=[np.float])
 def cos_samp_cdf_inv_vector(p):
-    return numpy.arccos( 2*p-1)   # returns from 0 to pi
+    return np.arccos( 2*p-1)   # returns from 0 to pi
 def dec_samp_cdf_inv_vector(p):
-    return numpy.arccos(2*p-1) - numpy.pi/2  # target from -pi/2 to pi/2
+    return np.arccos(2*p-1) - np.pi/2  # target from -pi/2 to pi/2
 
 
 def pseudo_dist_samp(r0,r):
-        return r*r*numpy.exp( - (r0/r)*(r0/r)/2. + r0/r)+0.01  # put a floor on probability, so we converge. Note this floor only cuts out NEARBY distances
+        return r*r*np.exp( - (r0/r)*(r0/r)/2. + r0/r)+0.01  # put a floor on probability, so we converge. Note this floor only cuts out NEARBY distances
 
-#pseudo_dist_samp_vector = numpy.vectorize(pseudo_dist_samp,excluded=['r0'],otypes=[numpy.float])
-pseudo_dist_samp_vector = numpy.vectorize(pseudo_dist_samp,otypes=[numpy.float])
+#pseudo_dist_samp_vector = np.vectorize(pseudo_dist_samp,excluded=['r0'],otypes=[np.float])
+pseudo_dist_samp_vector = np.vectorize(pseudo_dist_samp,otypes=[np.float])
 
 def delta_func_pdf(x_0, x):
     return 1.0 if x == x_0 else 0.0
 
-delta_func_pdf_vector = numpy.vectorize(delta_func_pdf, otypes=[numpy.float])
+delta_func_pdf_vector = np.vectorize(delta_func_pdf, otypes=[np.float])
 
 def delta_func_samp(x_0, x):
     return x_0
 
-delta_func_samp_vector = numpy.vectorize(delta_func_samp, otypes=[numpy.float])
+delta_func_samp_vector = np.vectorize(delta_func_samp, otypes=[np.float])
 
 class HealPixSampler(object):
     """
@@ -358,7 +367,7 @@ class HealPixSampler(object):
         dec = pi/2 - theta
         ra = phi
         """
-        return numpy.pi/2-th, ph
+        return np.pi/2-th, ph
 
     @staticmethod
     def decra2thph(dec, ra):
@@ -372,7 +381,7 @@ class HealPixSampler(object):
         theta = pi/2 - dec
         ra = phi
         """
-        return numpy.pi/2-dec, ra
+        return np.pi/2-dec, ra
 
     def __init__(self, skymap, massp=1.0):
         self.skymap = skymap
@@ -436,7 +445,7 @@ class HealPixSampler(object):
             if self.skymap[pix] < min_p:
                 continue
             self.valid_points_hist.extend([pt]*int(round(self.pseudo_pdf(*pt)/min_p)))
-        self.valid_points_hist = numpy.array(self.valid_points_hist).T
+        self.valid_points_hist = np.array(self.valid_points_hist).T
 
     def pseudo_pdf(self, dec_in, ra_in):
         """
@@ -448,7 +457,7 @@ class HealPixSampler(object):
 
     def pseudo_cdf_inverse(self, dec_in=None, ra_in=None, ndraws=1, stype='vecthist'):
         """
-        Select points from the skymap with a distribution following its corresponding pixel probability. If dec_in, ra_in are suupplied, they are ignored except that their shape is reproduced. If ndraws is supplied, that will set the shape. Will return a 2xN numpy array of the (dec, ra) values.
+        Select points from the skymap with a distribution following its corresponding pixel probability. If dec_in, ra_in are suupplied, they are ignored except that their shape is reproduced. If ndraws is supplied, that will set the shape. Will return a 2xN np array of the (dec, ra) values.
         stype controls the type of sampling done to retrieve points. Valid choices are
         'rejsamp': Rejection sampling: accurate but slow
         'vecthist': Expands a set of points into a larger vector with the multiplicity of the points in the vector corresponding roughly to the probability of drawing that point. Because this is not an exact representation of the proability, some points may not be represented at all (less than quantum of minimum probability) or inaccurately (a significant fraction of the fundamental quantum).
@@ -457,31 +466,31 @@ class HealPixSampler(object):
         if ra_in is not None:
             ndraws = len(ra_in)
         if ra_in is None:
-            ra_in, dec_in = numpy.zeros((2, ndraws))
+            ra_in, dec_in = np.zeros((2, ndraws))
 
         if stype == 'rejsamp':
             # FIXME: This is only valid under descending ordered CDF summation
             ceiling = max(self.skymap)
             i, np = 0, len(self.valid_points_decra)
             while i < len(ra_in):
-                rnd_n = numpy.random.randint(0, np)
-                trial = numpy.random.uniform(0, ceiling)
+                rnd_n = np.random.randint(0, np)
+                trial = np.random.uniform(0, ceiling)
                 if trial <= self.pseudo_pdf(*self.valid_points_decra[rnd_n]):
                     dec_in[i], ra_in[i] = self.valid_points_decra[rnd_n]
                     i += 1
-            return numpy.array([dec_in, ra_in])
+            return np.array([dec_in, ra_in])
         elif stype == 'vecthist':
             if self.valid_points_hist is None:
                 self.__expand_valid()
             np = self.valid_points_hist.shape[1]
-            rnd_n = numpy.random.randint(0, np, len(ra_in))
+            rnd_n = np.random.randint(0, np, len(ra_in))
             dec_in, ra_in = self.valid_points_hist[:,rnd_n]
-            return numpy.array([dec_in, ra_in])
+            return np.array([dec_in, ra_in])
         else:
             raise ValueError("%s is not a recgonized sampling type" % stype)
 
-#pseudo_dist_samp_vector = numpy.vectorize(pseudo_dist_samp,excluded=['r0'],otypes=[numpy.float])
-pseudo_dist_samp_vector = numpy.vectorize(pseudo_dist_samp,otypes=[numpy.float])
+#pseudo_dist_samp_vector = np.vectorize(pseudo_dist_samp,excluded=['r0'],otypes=[np.float])
+pseudo_dist_samp_vector = np.vectorize(pseudo_dist_samp,otypes=[np.float])
 
 
 def sanityCheckSamplerIntegrateUnity(sampler,*args,**kwargs):
@@ -499,8 +508,8 @@ def sanityCheckSamplerIntegrateUnity(sampler,*args,**kwargs):
 #    - provided to illustrate the interface
 def convergence_test_MostSignificantPoint(pcut, rvs, params):
     weights = rvs["weights"] #rvs["integrand"]* rvs["joint_prior"]/rvs["joint_s_prior"]
-    indxmax = numpy.argmax(weights)
-    wtSum = numpy.sum(weights)
+    indxmax = np.argmax(weights)
+    wtSum = np.sum(weights)
     return  weights[indxmax]/wtSum < pcut
 
 
@@ -522,14 +531,14 @@ def convergence_test_MostSignificantPoint(pcut, rvs, params):
 import scipy.stats as stats
 def convergence_test_NormalSubIntegrals(ncopies, pcutNormalTest, sigmaCutRelativeErrorThreshold, rvs, params):
     weights = rvs["integrand"]* rvs["joint_prior"]/rvs["joint_s_prior"]  # rvs["weights"] # rvs["weights"] is *sorted* (side effect?), breaking test. Recalculated weights are not.  Use explicitly calculated weights until sorting effect identified
-#    weights = weights /numpy.sum(weights)    # Keep original normalization, so the integral values printed to stdout have meaning relative to the overall integral value.  No change in code logic : this factor scales out (from the log, below)
-    igrandValues = numpy.zeros(ncopies)
-    len_part = numpy.int(len(weights)/ncopies)  # deprecated: np.floor->np.int
-    for indx in numpy.arange(ncopies):
-        igrandValues[indx] = numpy.log(numpy.mean(weights[indx*len_part:(indx+1)*len_part]))  # change to mean rather than sum, so sub-integrals have meaning
-    igrandValues= numpy.sort(igrandValues)#[2:]                            # Sort.  Useful in reports
+#    weights = weights /np.sum(weights)    # Keep original normalization, so the integral values printed to stdout have meaning relative to the overall integral value.  No change in code logic : this factor scales out (from the log, below)
+    igrandValues = np.zeros(ncopies)
+    len_part = np.int(len(weights)/ncopies)  # deprecated: np.floor->np.int
+    for indx in np.arange(ncopies):
+        igrandValues[indx] = np.log(np.mean(weights[indx*len_part:(indx+1)*len_part]))  # change to mean rather than sum, so sub-integrals have meaning
+    igrandValues= np.sort(igrandValues)#[2:]                            # Sort.  Useful in reports
     valTest = stats.normaltest(igrandValues)[1]                              # small value is implausible
-    igrandSigma = (numpy.std(igrandValues))/numpy.sqrt(ncopies)   # variance in *overall* integral, estimated from variance of sub-integrals
+    igrandSigma = (np.std(igrandValues))/np.sqrt(ncopies)   # variance in *overall* integral, estimated from variance of sub-integrals
     print(" Test values on distribution of log evidence:  (gaussianity p-value; standard deviation of ln evidence) ", valTest, igrandSigma)
     print(" Ln(evidence) sub-integral values, as used in tests  : ", igrandValues)
     return valTest> pcutNormalTest and igrandSigma < sigmaCutRelativeErrorThreshold   # Test on left returns a small value if implausible. Hence pcut ->0 becomes increasingly difficult (and requires statistical accidents). Test on right requires relative error in integral also to be small when pcut is small.   FIXME: Give these variables two different names
