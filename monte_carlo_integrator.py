@@ -3,7 +3,13 @@ import numpy as np
 import gaussian_mixture_model as GMM
 import traceback
 import time
-from multiprocess import Pool
+
+
+try:
+    from multiprocess import Pool
+except:
+    print('no multiprocess')
+
 
 class integrator:
     '''
