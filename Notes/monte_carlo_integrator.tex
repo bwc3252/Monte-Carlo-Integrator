@@ -5,7 +5,7 @@
 \newcommand{\vect}[1]{\boldsymbol{#1}}
 
 \title{Monte Carlo Integrator}
-\date{September 12, 2018}
+\date{October 3, 2018}
 \author{Ben Champion \\ bwc3252@rit.edu}
 \begin{document}
 \maketitle
@@ -40,9 +40,7 @@ distribution, or
 \end{equation}
 Weighting the samples in this way means that the integrator will converge to
 the correct distribution regardless of how the first iteration is sampled. In
-practice, the first iteration is usually sampled uniformly, although the user
-can provide samples and responsibilities from any prior distribution for the
-first iteration.
+practice, the first iteration is usually sampled uniformly.
 
 Each iteration, the integral result and variance are updated with a running
 average. The total integral is
@@ -55,30 +53,6 @@ updated variance is
 \begin{equation}
     \sigma^2_{total} = {{M \sigma^2_{prev} + \sigma^2} \over {M + 1}}.
 \end{equation}
-
-\section{Initialization}
-
-Whether using \texttt{monte\_carlo\_integrator.py} directly or within
-\texttt{mcsampler\_new.py}, the integrator is initialized with the following
-parameters:
-
-\begin{enumerate}
-
-\item \texttt{d}: Number of dimensions of the integrand's domain
-
-\item \texttt{bounds}: \texttt{(d $\times$ 2)} array where each row is
-\texttt{[left\_limit, right\_limit]} for its corresponding dimension
-
-\item \texttt{gmm\_dict}: Python dictionary where each key is a tuple of
-dimensions and each value is either a GMM object or \texttt{None}
-
-\item \texttt{n\_comp}: Number of Gaussian components per mixture model
-
-\end{enumerate}
-The integrator is called using \texttt{monte\_carlo\_integrator.integrate(func)},
-where \texttt{func} is a numpy vectorized function. The \texttt{var\_thresh},
-\texttt{min\_iter}, and \texttt{max\_iter} parameters can also be specified when
-calling the integrator.
 
 \section{Truncated Multivariate Gaussian Samples}
 
@@ -100,12 +74,12 @@ matrix $\Sigma$ and mean $\mu$, the final samples are generated as
 \end{equation}
 where $x'$ is the final sample, $\lambda$ is diagonal matrix of the eigenvalues
 of $\Sigma$, $\phi$ is a matrix of the eigenvectors of $\Sigma$, and $x$ is the
-original "base sample." \\
+original "base" Gaussian sample. \\
 
 \subsection{Fast Modified Rejection Sampling}
 
 Truncated samples are generated through a similar process. Scipy's
-\texttt{truncnorm} can be used to generate univariate truncated Gaussian
+\texttt{truncnorm()} can be used to generate univariate truncated Gaussian
 samples. Univariate samples with covariance 1 and mean 0 are used to create an
 array of multivariate samples centered at the origin with covariance 1. The
 above transformation is used to create truncated samples from the
@@ -220,7 +194,7 @@ array of probability densities. For samples drawn from an untruncated distributi
 this is simply the sum of the multivariate Gaussian probability densities of each
 point $x$ for each mixture component $k$,
 \begin{equation}
-    p(x_n) = \sum_{k} N(x_n | \mu_k, \Sigma_k),
+    p(x_n) = \sum_{k} N(x_n | \mu_k, \Sigma_k)\pi_k,
 \end{equation}
 \begin{equation}
     N(x | \mu, \Sigma) = {1 \over {(2\pi)^{D/2} \det(\Sigma)^{1/2}}}
@@ -278,25 +252,24 @@ is a source of instability.
 
 \section{Iterative Algorithm}
 
-The algorithm's main function, \texttt{integrate()}, is:
+The important part of the algorithm's main function, \texttt{integrate()}, is:
 \begin{verbatim}
-def integrate(self, func, min_iter=10, max_iter=20, var_thresh=0.03):
-    while self.iterations < max_iter:
+def integrate(self, func):
+    while (condition):
         self.sample()
         self.value_array = func(self.sample_array)
+        self.calculate_prior()
         self.calculate_results()
         self.iterations += 1
-        if self.iterations >= min_iter and self.var < var_thresh:
-            break
         self.train()
 \end{verbatim}
 
+The loop continues until any one of a number of terminating conditions is met.
+
 \subsection{Sampling}
 
-The first step in the algorithm is to sample the domain of integration.
-If an array of prior samples and responsibilities is not provided by the user,
-the initial prior is assumed to be uniform. The \texttt{sample()} function
-populates the \texttt{sample\_array} and \texttt{p\_array} objects. \\
+The first step in the algorithm is to sample the domain of integration. The \texttt{sample()} function initially populates the \texttt{sample\_array} and
+\texttt{p\_array} objects using a uniform sampling distribution. \\
 
 \texttt{sample\_array} is initialized as an empty $(N \times d)$ array, and
 \texttt{p\_array} is initialized as a $(N \times 1)$ array of ones. For each
@@ -327,8 +300,10 @@ responsibility of $x$ in that set of dimensions.
 \subsection{Calculating Results}
 
 The integrand $f(x)$ is evaluated over \texttt{sample\_array} and \texttt{value\_array}
-is populated with the result. The current integral and variance are calculated
-as
+is populated with the result. The priors for each set of dimensions are calculated
+similarly, and \texttt{value\_array} is updated with the values multiplied by the priors. \\
+
+The current integral and variance are calculated as
 \begin{equation}
     I = {{1 \over N} \sum_{n=0}^{N} {f(x_n) \over {p(x_n)}}}.
 \end{equation}
@@ -361,7 +336,7 @@ $G(x)$ be the cumulative history of $g(x)$ over all iterations, then
 
 For each group of dimensions in \texttt{gmm\_dict}, the corresponding samples
 are placed in a temporary array. If \texttt{gmm\_dict[dim\_group]} is
-\texttt{None}, a new GMM oject is initialized. The model is then fit using
+\texttt{None}, a new GMM object is initialized. The model is then fit using
 \texttt{model.fit()}. If \texttt{gmm\_dict[dim\_group]} is a GMM object,
 an update is done using \texttt{model.update()}. In either case, the sample
 weights are
